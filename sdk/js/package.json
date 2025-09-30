@@ -1,0 +1,47 @@
+{
+  "name": "fostrom",
+  "version": "0.0.14",
+  "description": "Fostrom's Official Device SDK for JS. Fostrom (https://fostrom.io) is an IoT Cloud Platform.",
+  "keywords": [
+    "fostrom",
+    "device",
+    "sdk",
+    "iot",
+    "cloud",
+    "fleet",
+    "mqtt",
+    "websockets",
+    "actions",
+    "datapoint",
+    "message",
+    "hardware",
+    "raspberry"
+  ],
+  "homepage": "https://docs.fostrom.io/sdk/js",
+  "license": "Apache-2.0",
+  "author": "Fostrom <support@fostrom.io> (https://fostrom.io)",
+  "files": [
+    "index.js",
+    "dl-agent.sh",
+    "README.md",
+    "LICENSE"
+  ],
+  "main": "index.js",
+  "type": "module",
+  "exports": {
+    ".": {
+      "module-sync": "./index.js",
+      "import": "./index.js",
+      "default": "./index.js"
+    },
+    "./package.json": "./package.json",
+    "./dl-agent.sh": "./dl-agent.sh"
+  },
+  "scripts": {
+    "postinstall": "sh dl-agent.sh .agent"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "dependencies": {}
+}

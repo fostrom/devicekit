@@ -1,0 +1,117 @@
+name: build
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  build-on-linux:
+    runs-on: ubuntu-latest
+    env:
+      PYTHON_VERSION: "3.10"
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: extractions/setup-just@v3
+      - uses: astral-sh/setup-uv@v6
+      - run: sudo snap install zig --classic --beta
+      - uses: erlef/setup-beam@v1
+        with:
+          elixir-version: "1.18"
+          otp-version: "28.1"
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo
+            ~/.rustup
+            device-agent/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.local/share/uv
+            ~/.cache/uv
+          key: ${{ runner.os }}-uv-${{ env.PYTHON_VERSION }}-${{ hashFiles('sdk/python/uv.lock', 'sdk/python/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-uv-${{ env.PYTHON_VERSION }}-
+            ${{ runner.os }}-uv-
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.mix
+            ~/.hex
+            ~/.cache/rebar3
+            sdk/elixir/deps
+            sdk/elixir/_build
+          key: ${{ runner.os }}-mix-${{ hashFiles('sdk/elixir/mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-mix-
+
+      - run: sed -i '/^set quiet$/d' justfile
+      - run: just -v setup
+      - run: just -v release
+
+  build-on-macos:
+    runs-on: macos-latest
+    env:
+      PYTHON_VERSION: "3.10"
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: extractions/setup-just@v3
+      - uses: astral-sh/setup-uv@v6
+      - run: brew install zig
+      - uses: erlef/setup-beam@v1
+        with:
+          elixir-version: "1.18"
+          otp-version: "28.1"
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo
+            ~/.rustup
+            device-agent/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.local/share/uv
+            ~/.cache/uv
+          key: ${{ runner.os }}-uv-${{ env.PYTHON_VERSION }}-${{ hashFiles('sdk/python/uv.lock', 'sdk/python/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-uv-${{ env.PYTHON_VERSION }}-
+            ${{ runner.os }}-uv-
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.mix
+            ~/.hex
+            ~/.cache/rebar3
+            sdk/elixir/deps
+            sdk/elixir/_build
+          key: ${{ runner.os }}-mix-${{ hashFiles('sdk/elixir/mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-mix-
+
+      - run: sed -i '' -e '/^set quiet$/d' justfile
+      - run: just -v setup
+      - run: just -v release

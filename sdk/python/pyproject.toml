@@ -1,0 +1,67 @@
+[project]
+name = "fostrom"
+version = "0.0.13"
+description = "Fostrom Device SDK"
+readme = "README.md"
+authors = [{ name = "Fostrom", email = "support@fostrom.io" }]
+license = {text = "Apache-2.0"}
+requires-python = ">=3.10"
+dependencies = []
+
+keywords = [
+    "fostrom",
+    "device",
+    "sdk",
+    "iot",
+    "cloud",
+    "fleet",
+    "mqtt",
+    "websockets",
+    "actions",
+    "datapoint",
+    "message",
+    "hardware",
+    "raspberry"
+]
+
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
+    "Typing :: Typed",
+]
+
+[project.urls]
+"Fostrom" = "https://fostrom.io"
+"SDK Docs" = "https://docs.fostrom.io/sdk/py"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/fostrom"]
+exclude = ["src/fostrom/.agent"]
+
+[tool.hatch.build]
+include = ["src/fostrom"]
+exclude = ["src/fostrom/.agent"]
+
+[tool.hatch.build.targets.sdist.sources]
+".." = ""
+
+[tool.hatch.build.targets.sdist.force-include]
+"../dl-agent.sh" = "src/fostrom/dl-agent.sh"
+
+[tool.ruff]
+line-length = 98
+target-version = "py310"
+src = ["src", "tests"]

@@ -1,0 +1,12 @@
+# LSP, Editors and OS
+.DS_Store
+.envrc
+.vscode/
+.zed/
+.idea/
+.expert/
+.elixir-ls/
+
+# Repo
+.agent/
+.cache/

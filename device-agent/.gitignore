@@ -1,0 +1,8 @@
+# Rust
+/target
+.DS_Store
+*rs_cov*
+tarpaulin*
+
+# Repo Specific
+.release
