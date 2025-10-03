@@ -39,7 +39,7 @@ async function main() {
 main()
 ```
 
-> Requires Node.js 22.12+.
+> Requires Node.js 22.12+ or Bun 1.2+
 
 You can load the SDK via either syntax:
 
@@ -50,6 +50,12 @@ import Fostrom from 'fostrom'
 ```js
 const { default: Fostrom } = require('fostrom')
 ```
+
+## A Note on BigInts
+
+Fostrom's Packet Schemas support defining `u64` and `i64` integers. However, JavaScript's `Number` type is limited to `2^53 - 1`. To rectify this issue, we use the `bigint` type and handle JSON encoding and decoding automatically.
+
+Note that there's a caveat here. When Fostrom delivers a message to the SDK containing a `u64` or `i64` number, it will convert to the `Number` type if it is smaller than `2^53 - 1`, and convert to `bigint` if it is larger. This is because the SDK does not know if the field is a `u64` or `i64` type when converting. So for those fields you will need to check whether the type is `bigint` or not.
 
 ## A Note on the Device Agent
 

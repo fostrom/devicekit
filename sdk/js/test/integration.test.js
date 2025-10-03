@@ -5,6 +5,7 @@ import path from 'node:path'
 import fs from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import http from 'node:http'
+import { parseJSON } from '../json.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -80,7 +81,7 @@ function unixRequest(pathname, method = 'GET') {
           const contentType = res.headers['content-type'] || ''
           if (contentType.toLowerCase().includes('application/json') && bodyBuf.length > 0) {
             try {
-              json = JSON.parse(bodyBuf.toString('utf8'))
+              json = parseJSON(bodyBuf.toString('utf8'))
             } catch {
               json = null
             }
@@ -120,7 +121,10 @@ test('device agent not running initially', { concurrency: false }, async (t) => 
     return
   }
 
-  await assert.rejects(() => unixRequest('/'), /ENOENT|ECONNREFUSED/)
+  await assert.rejects(
+    () => unixRequest('/'),
+    /ENOENT|ECONNREFUSED|EPERM|FailedToOpenSocket|typo in the url or port/
+  )
 })
 
 test('start Fostrom SDK and verify agent headers', { concurrency: false }, async (t) => {

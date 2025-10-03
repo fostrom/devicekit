@@ -243,7 +243,8 @@ build-sdk-python:
 build-sdk-js:
     echo
     echo "{{BLUE}}Running JS Tests...{{NORMAL}}"
-    node --test --test-reporter=dot
+    if [ "{{QUIET}}"  = -q ]; then node --test --test-reporter=dot; else node --test; fi
+    if [ "{{QUIET}}"  = -q ]; then bun test >/dev/null 2>&1; else bun test; fi
 
 
 # VERIFY PYTHON SDK PACKAGE CONTENTS

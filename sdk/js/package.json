@@ -1,6 +1,6 @@
 {
   "name": "fostrom",
-  "version": "0.0.14",
+  "version": "0.0.15",
   "description": "Fostrom's Official Device SDK for JS. Fostrom (https://fostrom.io) is an IoT Cloud Platform.",
   "keywords": [
     "fostrom",
@@ -22,6 +22,7 @@
   "author": "Fostrom <support@fostrom.io> (https://fostrom.io)",
   "files": [
     "index.js",
+    "json.js",
     "dl-agent.sh",
     "README.md",
     "LICENSE"

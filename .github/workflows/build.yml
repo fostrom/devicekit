@@ -24,6 +24,12 @@ jobs:
       - uses: extractions/setup-just@v3
       - uses: astral-sh/setup-uv@v6
       - run: sudo snap install zig --classic --beta
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.2.23"
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
       - uses: erlef/setup-beam@v1
         with:
           elixir-version: "1.18"
@@ -75,6 +81,12 @@ jobs:
       - uses: extractions/setup-just@v3
       - uses: astral-sh/setup-uv@v6
       - run: brew install zig
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.2.23"
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
       - uses: erlef/setup-beam@v1
         with:
           elixir-version: "1.18"

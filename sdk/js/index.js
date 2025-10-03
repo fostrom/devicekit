@@ -2,6 +2,7 @@ import { execSync } from "child_process"
 import { fileURLToPath } from "url"
 import path from "path"
 import http from "node:http"
+import { stringifyJSON, parseJSON } from "./json.js"
 
 function agent_path() {
   const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -89,7 +90,7 @@ export default class Fostrom {
   #installExitHandler() {
     if (this.#installedExitHandler) return
     process.on('exit', () => {
-      try { this.shutdown() } catch {}
+      try { this.shutdown() } catch { }
     })
     this.#installedExitHandler = true
   }
@@ -143,7 +144,7 @@ export default class Fostrom {
       if (payload === undefined || payload === null) {
         bodyString = "null"
       } else {
-        bodyString = JSON.stringify(payload)
+        bodyString = stringifyJSON(payload)
       }
       headers["Content-Length"] = Buffer.byteLength(bodyString, 'utf8')
     } else {
@@ -189,7 +190,7 @@ export default class Fostrom {
       if (this.#sseReq && typeof this.#sseReq.destroy === 'function') {
         this.#sseReq.destroy()
       }
-    } catch {}
+    } catch { }
     this.#sseReq = null
     const doStop = (stopAgent === null) ? this.#stopAgentOnExit : Boolean(stopAgent)
     if (doStop) Fostrom.stopAgent()
@@ -364,7 +365,7 @@ export default class Fostrom {
           const ct = res.headers['content-type'] || ''
           let bodyJson = null
           if (ct.toLowerCase().includes('application/json') && bodyText.length > 0) {
-            try { bodyJson = JSON.parse(bodyText) } catch { bodyJson = null }
+            try { bodyJson = parseJSON(bodyText) } catch { bodyJson = null }
           }
           resolve({
             statusCode: res.statusCode || 0,
@@ -396,7 +397,7 @@ export default class Fostrom {
       const line = raw.replace(/\r$/, '')
       if (line === '') {
         if (event.data && event.data !== '') {
-          try { event.data = JSON.parse(event.data) } catch { /* ignore */ }
+          try { event.data = parseJSON(event.data) } catch { /* ignore */ }
         }
         if (event.event) event_handler(event)
         event = {}
@@ -418,7 +419,7 @@ export default class Fostrom {
       await this.onMail(mail)
     } catch (e) {
       if (this.#log) console.error(`[Fostrom] onMail handler threw; auto-rejecting mail ${mail.id} (${mail.name})`, e)
-      try { await mail.reject() } catch {}
+      try { await mail.reject() } catch { }
     }
   }
 }
