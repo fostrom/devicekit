@@ -407,11 +407,7 @@ pub enum MoonlightPacket {
     },
 
     #[deku(id = "20")]
-    NewMailEvent {
-        #[deku(pad_bytes_before = "1")]
-        mailbox_size: u16,
-        pulse_id: u64,
-    },
+    NewMailEvent(u8),
 
     #[deku(id = "21")]
     MailboxNext {
@@ -559,11 +555,8 @@ impl MoonlightPacket {
         }
     }
 
-    pub fn new_mail_event(mailbox_size: u16, pulse_id: u64) -> Self {
-        Self::NewMailEvent {
-            mailbox_size,
-            pulse_id,
-        }
+    pub fn new_mail_event() -> Self {
+        Self::NewMailEvent(0)
     }
 
     pub fn mailbox_next(header_only: bool, txn_id: u64) -> Self {
@@ -847,10 +840,7 @@ impl ServerResp {
                 }
             }
 
-            P::NewMailEvent {
-                mailbox_size: _,
-                pulse_id: _,
-            } => ServerResp::NewMail,
+            P::NewMailEvent(0) => ServerResp::NewMail,
 
             _ => ServerResp::ForceCloseSocket,
         }
@@ -1929,12 +1919,7 @@ mod tests {
 
     #[test]
     fn test_new_mail_event() {
-        let mailbox_size: u16 = max(1, rand::random());
-        let pulse_id = pulse_id();
-        let mut bytes = vec![20, 0];
-        bytes.extend_from_slice(&mailbox_size.to_be_bytes());
-        bytes.extend_from_slice(&pulse_id.to_be_bytes());
-        cmp(P::new_mail_event(mailbox_size, pulse_id), &bytes);
+        cmp(P::new_mail_event(), &[20, 0]);
     }
 
     #[test]
@@ -2476,10 +2461,9 @@ mod tests {
     #[test]
     fn test_client_logic_new_mail_available() {
         let (client, mut logic) = make_client_logic();
-        let bytes = Codec::encode(&P::new_mail_event(5, 1500)).unwrap();
+        let bytes = Codec::encode(&P::new_mail_event()).unwrap();
         let transport_recv = ClientEvent::TransportRecv(bytes);
         assert_eq!(logic.process_client_event(transport_recv), None);
-
         let notification = client.notify_chan_rx.recv().unwrap();
         assert_eq!(notification, ("new_mail".to_string(), "".to_string()));
     }
