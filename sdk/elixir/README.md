@@ -13,7 +13,7 @@ The package can be installed by adding `fostrom` to your list of dependencies in
 ```elixir
 def deps do
   [
-    {:fostrom, "~> 0.0.13"}
+    {:fostrom, "~> 0.0.14"}
   ]
 end
 ```

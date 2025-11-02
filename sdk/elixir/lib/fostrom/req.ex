@@ -23,7 +23,7 @@ defmodule Fostrom.Req do
       unix_socket: "/tmp/fostrom/agent.sock",
       method: method,
       url: url,
-      body: body
+      body: if(body, do: JSON.encode!(body))
     )
     |> Req.run()
     |> elem(1)
@@ -68,7 +68,7 @@ defmodule Fostrom.Req do
         {:ok,
          %Fostrom.Mailbox.Status{
            mailbox_size: get_header(resp, "x-mailbox-size") |> String.to_integer(),
-           next_mail_id: get_header(resp, "x-mail-id") |> String.to_integer(),
+           next_mail_id: get_header(resp, "x-mail-id"),
            next_mail_name: get_header(resp, "x-mail-name")
          }}
       end
@@ -92,7 +92,7 @@ defmodule Fostrom.Req do
         {:ok,
          %Fostrom.Mail{
            mailbox_size: get_header(resp, "x-mailbox-size") |> String.to_integer(),
-           id: get_header(resp, "x-mail-id") |> String.to_integer(),
+           id: get_header(resp, "x-mail-id"),
            name: get_header(resp, "x-mail-name"),
            payload: payload
          }}

@@ -18,14 +18,14 @@ defmodule Fostrom.Mail do
   """
 
   @typedoc """
-  * `id`: u64 integer
+  * `id`: UUIDv7
   * `name`: name of the packet schema
   * `payload`: a map (with string keys)
   * `mailbox_size`: u16 integer
   """
   @type t() :: %__MODULE__{
-          id: non_neg_integer(),
-          name: binary(),
+          id: String.t(),
+          name: String.t(),
           payload: map() | nil,
           mailbox_size: non_neg_integer()
         }
@@ -42,13 +42,13 @@ defmodule Fostrom.Mailbox.Status do
 
   @typedoc """
   * `mailbox_size`: u16 integer
-  * `next_mail_id`: u64 integer
+  * `next_mail_id`: UUIDv7
   * `next_mail_name`: name of the packet schema
   """
   @type t() :: %__MODULE__{
           mailbox_size: non_neg_integer(),
-          next_mail_id: non_neg_integer(),
-          next_mail_name: binary()
+          next_mail_id: String.t(),
+          next_mail_name: String.t()
         }
 
   defstruct [:mailbox_size, :next_mail_id, :next_mail_name]
