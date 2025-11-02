@@ -217,7 +217,7 @@ export default class Fostrom {
     }
     return {
       mailbox_size: Number(h["x-mailbox-size"]) || 0,
-      next_mail_id: Number(h["x-mail-id"]) || null,
+      next_mail_id: h["x-mail-id"] || null,
       next_mail_name: h["x-mail-name"] || null,
     }
   }
@@ -229,7 +229,7 @@ export default class Fostrom {
     if (empty) return null
 
     const mailbox_size = Number(h["x-mailbox-size"]) || 0
-    const id = Number(h["x-mail-id"]) || null
+    const id = h["x-mail-id"] || null
     const name = h["x-mail-name"] || null
     const hasPayload = Fostrom.#parse_bool(h["x-mail-has-payload"]) === true
     const payload = hasPayload ? (res.bodyJson ?? null) : null

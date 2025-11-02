@@ -7,7 +7,7 @@ class Mail:
     def __init__(
         self,
         instance: FostromProtocol,
-        mail_id: int,
+        mail_id: str,
         name: str,
         payload: dict | None,
         mailbox_size: int,
@@ -29,4 +29,4 @@ class Mail:
 
 
 class FostromProtocol(Protocol):
-    def mail_op(self, operation: str, mail_id: int) -> None: ...
+    def mail_op(self, operation: str, mail_id: str) -> None: ...

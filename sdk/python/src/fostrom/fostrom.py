@@ -69,7 +69,7 @@ class Fostrom:
             return {"mailbox_size": 0, "next_mail_id": None, "next_mail_name": None}
         return {
             "mailbox_size": int(h.get("x-mailbox-size", "0") or 0),
-            "next_mail_id": int(h.get("x-mail-id", "0") or 0),
+            "next_mail_id": h.get("x-mail-id", "0"),
             "next_mail_name": h.get("x-mail-name"),
         }
 
@@ -80,13 +80,13 @@ class Fostrom:
         if empty:
             return None
         mailbox_size = int(h.get("x-mailbox-size", "0") or 0)
-        mail_id = int(h.get("x-mail-id", "0") or 0)
+        mail_id = h.get("x-mail-id", "0")
         name = h.get("x-mail-name", "")
         has_payload = parse_bool(h.get("x-mail-has-payload"))
         payload = res.json if has_payload else None
         return Mail(self, mail_id, name, payload, mailbox_size)
 
-    def mail_op(self, operation: str, mail_id: int) -> None:
+    def mail_op(self, operation: str, mail_id: str) -> None:
         if operation not in ("ack", "reject", "requeue"):
             raise ValueError("Invalid mailbox operation")
         res = self._put(f"/mailbox/{operation}/{mail_id}")

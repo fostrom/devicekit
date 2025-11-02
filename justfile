@@ -229,6 +229,7 @@ build-sdk-elixir:
 build-sdk-python:
     uvx ruff check -s .
     uvx ty check {{QUIET}} .
+    rm -rf dist/
     uv build {{QUIET}}
     just verify-sdk-python-build
     echo
