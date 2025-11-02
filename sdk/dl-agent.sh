@@ -4,7 +4,7 @@
 #
 # Usage: ./dl-agent.sh <directory>
 
-VERSION="v0.0.13"
+VERSION="v0.0.14"
 
 # CDN URLs in order of preference
 CDN_PRIMARY="https://cdn.fostrom.dev/fostrom-device-agent/$VERSION"
