@@ -168,14 +168,12 @@ pub enum MailAckType {
 
 #[derive(Error, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GeneralErrors {
-    #[error(
-        "invalid_pulse_id: The provided Pulse ID is invalid. A Pulse ID is a 64-bit unsigned integer."
-    )]
+    #[error("invalid_pulse_id: The provided Pulse ID is invalid. A Pulse ID is a UUIDv7 ID.")]
     InvalidPulseID,
 
     #[error("mail_ack_failed: Failed to {ack_type} the mail with ID {pulse_id}.")]
     AckMailFailed {
-        pulse_id: u64,
+        pulse_id: u128,
         ack_type: MailAckType,
     },
 
@@ -199,7 +197,7 @@ pub enum GeneralErrors {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Mail {
-    pub pulse_id: u64,
+    pub pulse_id: u128,
     pub name: String,
     pub payload: Option<Value>,
     pub mailbox_size: u16,
@@ -386,7 +384,7 @@ pub enum MoonlightPacket {
         #[deku(pad_bytes_before = "1")]
         pulse_type: PulseType,
 
-        pulse_id: u64,
+        txn_id: u64,
 
         name_len: u8,
         #[deku(count = "name_len")]
@@ -401,7 +399,7 @@ pub enum MoonlightPacket {
     PulseResp {
         #[deku(bits = "1", pad_bits_before = "7")]
         successful: bool,
-        pulse_id: u64,
+        txn_id: u64,
         #[deku(cond = "!successful")]
         error_reason: Option<PulseErrorReason>,
     },
@@ -428,7 +426,7 @@ pub enum MoonlightPacket {
         mailbox_size: u16,
 
         #[deku(cond = "*successful && *mailbox_size > 0")]
-        pulse_id: Option<u64>,
+        pulse_id: Option<u128>,
 
         #[deku(cond = "*successful && *mailbox_size > 0")]
         name_len: Option<u8>,
@@ -451,7 +449,7 @@ pub enum MoonlightPacket {
     #[deku(id = "25")]
     AckMail {
         #[deku(pad_bytes_before = "1")]
-        pulse_id: u64,
+        pulse_id: u128,
         ack_type: MailAckType,
     },
 
@@ -460,7 +458,7 @@ pub enum MoonlightPacket {
         #[deku(bits = "1", pad_bits_before = "7")]
         successful: bool,
         mailbox_size: u16,
-        pulse_id: u64,
+        pulse_id: u128,
         ack_type: MailAckType,
     },
 }
@@ -524,14 +522,14 @@ impl MoonlightPacket {
         Self::HeartbeatAck { successful }
     }
 
-    pub fn pulse(pulse_type: PulseType, pulse_id: u64, name: String, payload: String) -> Self {
+    pub fn pulse(pulse_type: PulseType, txn_id: u64, name: String, payload: String) -> Self {
         if name.len() > 255 {
             panic!("Mail name cannot be more than 255 characters");
         }
 
         Self::Pulse {
             pulse_type,
-            pulse_id,
+            txn_id,
             name_len: name.len() as u8,
             payload_len: payload.len() as u32,
             name: name.as_bytes().to_vec(),
@@ -539,18 +537,18 @@ impl MoonlightPacket {
         }
     }
 
-    pub fn pulse_resp_success(pulse_id: u64) -> Self {
+    pub fn pulse_resp_success(txn_id: u64) -> Self {
         Self::PulseResp {
             successful: true,
-            pulse_id,
+            txn_id,
             error_reason: None,
         }
     }
 
-    pub fn pulse_resp_error(pulse_id: u64, error_reason: PulseErrorReason) -> Self {
+    pub fn pulse_resp_error(txn_id: u64, error_reason: PulseErrorReason) -> Self {
         Self::PulseResp {
             successful: false,
-            pulse_id,
+            txn_id,
             error_reason: Some(error_reason),
         }
     }
@@ -597,7 +595,7 @@ impl MoonlightPacket {
     pub fn mailbox_next_resp_header_only(
         txn_id: u64,
         mailbox_size: u16,
-        pulse_id: u64,
+        pulse_id: u128,
         name: String,
     ) -> Self {
         Self::MailboxNextResp {
@@ -616,7 +614,7 @@ impl MoonlightPacket {
     pub fn mailbox_next_resp_full(
         txn_id: u64,
         mailbox_size: u16,
-        pulse_id: u64,
+        pulse_id: u128,
         name: String,
         payload: String,
     ) -> Self {
@@ -637,11 +635,11 @@ impl MoonlightPacket {
         }
     }
 
-    pub fn ack_mail(pulse_id: u64, ack_type: MailAckType) -> Self {
+    pub fn ack_mail(pulse_id: u128, ack_type: MailAckType) -> Self {
         Self::AckMail { pulse_id, ack_type }
     }
 
-    pub fn ack_mail_resp(mailbox_size: u16, pulse_id: u64, ack_type: MailAckType) -> Self {
+    pub fn ack_mail_resp(mailbox_size: u16, pulse_id: u128, ack_type: MailAckType) -> Self {
         Self::AckMailResp {
             successful: true,
             mailbox_size,
@@ -650,7 +648,7 @@ impl MoonlightPacket {
         }
     }
 
-    pub fn ack_mail_resp_failed(pulse_id: u64, ack_type: MailAckType) -> Self {
+    pub fn ack_mail_resp_failed(pulse_id: u128, ack_type: MailAckType) -> Self {
         Self::AckMailResp {
             successful: false,
             mailbox_size: 0,
@@ -733,7 +731,7 @@ pub enum ServerResp {
 
     // Transactions
     PulseResp(Result<u64, (u64, PulseErrorReason)>),
-    AckMailResp(Result<(u64, bool), (u64, MailAckType)>),
+    AckMailResp(Result<(u128, bool), (u128, MailAckType)>),
     MailboxNext(Result<(u64, Option<Mail>), u64>),
 }
 
@@ -758,15 +756,15 @@ impl ServerResp {
 
             P::PulseResp {
                 successful,
-                pulse_id,
+                txn_id,
                 error_reason,
             } => {
                 let r = if successful {
-                    Ok(pulse_id)
+                    Ok(txn_id)
                 } else if error_reason.is_some() {
-                    Err((pulse_id, error_reason.unwrap()))
+                    Err((txn_id, error_reason.unwrap()))
                 } else {
-                    Err((pulse_id, PulseErrorReason::Unknown))
+                    Err((txn_id, PulseErrorReason::Unknown))
                 };
 
                 ServerResp::PulseResp(r)
@@ -886,7 +884,7 @@ pub enum ClientCmd {
     MailboxNext(bool, ReturnChan),
 
     /// MailOp(MailAckType, mail_id)
-    MailOp(MailAckType, u64, ReturnChan),
+    MailOp(MailAckType, u128, ReturnChan),
 }
 
 /// An enum of all possible events that the client can process and receive
@@ -942,7 +940,7 @@ pub struct ClientLogic {
     /// Pending Txns: the u64 is the pulse_id/txn_id.
     /// The Instant is tracked to check for timeouts
     next_txn_id: u64,
-    pending_txns: HashMap<u64, (Instant, ReturnChan)>,
+    pending_txns: HashMap<u128, (Instant, ReturnChan)>,
 
     /// Encoded Connect Packet and Creds Struct
     _creds: Creds,
@@ -984,13 +982,38 @@ impl ClientLogic {
         Ok((tx, client_logic))
     }
 
-    /// Use this function to convert string mail_ids into u64
+    /// Use this function to convert the UUIDv7 string mail_id into u128
     /// before sending them over the request channel.
-    pub fn to_pulse_id(mail_id: impl ToString) -> Result<u64> {
-        mail_id
+    pub fn uuidv7_u128(mail_id: impl ToString) -> Result<u128> {
+        let mail_id = mail_id
             .to_string()
-            .parse()
-            .map_err(|_| anyhow!(GeneralErrors::InvalidPulseID.to_string()))
+            .trim()
+            .replace("-", "")
+            .to_ascii_lowercase();
+
+        if !mail_id.chars().all(|c| c.is_ascii_hexdigit())
+            || mail_id.len() != 32
+            || mail_id.as_bytes()[12] != b'7'
+            || !matches!(mail_id.as_bytes()[16], b'8' | b'9' | b'a' | b'b')
+        {
+            return Err(anyhow!(GeneralErrors::InvalidPulseID));
+        }
+
+        u128::from_str_radix(&mail_id, 16).map_err(|_| anyhow!(GeneralErrors::InvalidPulseID))
+    }
+
+    /// Use this function to convert the u128 mail_id into a UUIDv7 string
+    /// before passing them to the router.
+    pub fn uuidv7_str(mail_id: u128) -> String {
+        let hex = format!("{:032x}", mail_id);
+        format!(
+            "{}-{}-{}-{}-{}",
+            &hex[0..8],
+            &hex[8..12],
+            &hex[12..16],
+            &hex[16..20],
+            &hex[20..32]
+        )
     }
 
     /// The primary purpose of this function is to ensure the
@@ -1135,7 +1158,7 @@ impl ClientLogic {
         let timeout = Duration::from_secs(10);
 
         // Collect timed-out transaction IDs to avoid mutating the map while iterating
-        let timed_out: Vec<u64> = self
+        let timed_out: Vec<u128> = self
             .pending_txns
             .iter()
             .filter_map(|(txn_id, (ts, _))| {
@@ -1160,7 +1183,7 @@ impl ClientLogic {
         let mut txn_id = self.next_txn_id();
 
         for _ in 0..3 {
-            if self.pending_txns.contains_key(&txn_id) {
+            if self.pending_txns.contains_key(&(txn_id as u128)) {
                 txn_id = self.next_txn_id();
             } else {
                 break;
@@ -1168,11 +1191,11 @@ impl ClientLogic {
         }
 
         #[allow(clippy::map_entry)]
-        if self.pending_txns.contains_key(&txn_id) {
+        if self.pending_txns.contains_key(&(txn_id as u128)) {
             let _ = return_chan.send(R::Err("txn_failed: Transaction ID Exhaustion".to_string()));
             Err(anyhow!("txn_id_exhaustion"))
         } else {
-            self.pending_txns.insert(txn_id, (now, return_chan));
+            self.pending_txns.insert(txn_id as u128, (now, return_chan));
             Ok(txn_id)
         }
     }
@@ -1247,9 +1270,9 @@ impl ClientLogic {
             },
 
             ServerResp::AckMailResp(ack_result) => match ack_result {
-                Ok((pulse_id, false)) => self.resolve_txn(pulse_id, R::MailAckSuccessful(false)),
-                Ok((pulse_id, true)) => self.resolve_txn(pulse_id, R::MailAckSuccessful(true)),
-                Err((pulse_id, mail_ack_type)) => self.resolve_txn(
+                Ok((pulse_id, false)) => self.resolve_mail(pulse_id, R::MailAckSuccessful(false)),
+                Ok((pulse_id, true)) => self.resolve_mail(pulse_id, R::MailAckSuccessful(true)),
+                Err((pulse_id, mail_ack_type)) => self.resolve_mail(
                     pulse_id,
                     R::Err(
                         GeneralErrors::AckMailFailed {
@@ -1275,9 +1298,16 @@ impl ClientLogic {
     }
 
     fn resolve_txn(&mut self, txn_id: u64, return_value: ReturnChanResult) {
-        if let Some((_, return_chan)) = self.pending_txns.get(&txn_id) {
+        if let Some((_, return_chan)) = self.pending_txns.get(&(txn_id as u128)) {
             let _ = return_chan.send(return_value);
-            self.pending_txns.remove(&txn_id);
+            self.pending_txns.remove(&(txn_id as u128));
+        }
+    }
+
+    fn resolve_mail(&mut self, pulse_id: u128, return_value: ReturnChanResult) {
+        if let Some((_, return_chan)) = self.pending_txns.get(&pulse_id) {
+            let _ = return_chan.send(return_value);
+            self.pending_txns.remove(&pulse_id);
         }
     }
 }
@@ -1649,7 +1679,7 @@ mod tests {
         rand::random()
     }
 
-    fn pulse_id() -> u64 {
+    fn pulse_id() -> u128 {
         rand::random()
     }
 
@@ -1841,7 +1871,7 @@ mod tests {
         let pulse_type = pulse_types.choose(&mut rng).unwrap().to_owned();
         let pulse_type_u8 = pulse_type as u8;
 
-        let pulse_id = pulse_id();
+        let txn_id = txn_id();
         let name = gen_rand_str(rand::random_range(1..255));
         let payload = gen_rand_str(rand::random_range(1..500_000));
         let name_len = name.len() as u8;
@@ -1849,12 +1879,12 @@ mod tests {
         let mut bytes = Vec::new();
         bytes.extend_from_slice(&[10, 0]);
         bytes.extend_from_slice(&pulse_type_u8.to_be_bytes());
-        bytes.extend_from_slice(&pulse_id.to_be_bytes());
+        bytes.extend_from_slice(&txn_id.to_be_bytes());
         bytes.extend_from_slice(&name_len.to_be_bytes());
         bytes.extend_from_slice(name.as_bytes());
         bytes.extend_from_slice(&payload_len.to_be_bytes());
         bytes.extend_from_slice(payload.as_bytes());
-        let pulse = P::pulse(pulse_type, pulse_id, name, payload);
+        let pulse = P::pulse(pulse_type, txn_id, name, payload);
         cmp(pulse, &bytes)
     }
 
@@ -1884,20 +1914,20 @@ mod tests {
 
     #[test]
     fn test_pulse_resp_success() {
-        let pulse_id = pulse_id();
-        let pulse = P::pulse_resp_success(pulse_id);
+        let txn_id = txn_id();
+        let pulse = P::pulse_resp_success(txn_id);
         let mut bytes = Vec::new();
         bytes.extend_from_slice(&[11, 1]);
-        bytes.extend_from_slice(&pulse_id.to_be_bytes());
+        bytes.extend_from_slice(&txn_id.to_be_bytes());
         cmp(pulse, &bytes);
     }
 
     fn cmp_pulse_resp_error(reason: PulseErrorReason) {
-        let pulse_id = pulse_id();
-        let pulse = P::pulse_resp_error(pulse_id, reason);
+        let txn_id = txn_id();
+        let pulse = P::pulse_resp_error(txn_id, reason);
         let mut bytes = Vec::new();
         bytes.extend_from_slice(&[11, 0]);
-        bytes.extend_from_slice(&pulse_id.to_be_bytes());
+        bytes.extend_from_slice(&txn_id.to_be_bytes());
         bytes.extend_from_slice(&[reason as u8]);
         cmp(pulse, &bytes);
     }
@@ -2070,7 +2100,7 @@ mod tests {
         let heartbeat = P::heartbeat();
         let pulse = P::pulse(
             PulseType::Unknown,
-            pulse_id(),
+            txn_id(),
             gen_rand_str(rand::random_range(1..255)),
             gen_rand_str(rand::random_range(1..500_000)),
         );
@@ -2153,9 +2183,9 @@ mod tests {
 
         assert!(logic.codec.buffer.is_empty());
 
-        let r: u64 = rand::random();
-        let m = ClientLogic::to_pulse_id(r.to_string()).unwrap();
-        assert_eq!(r, m);
+        let id_str: String = "00000000-0000-7000-8000-000000000000".to_string();
+        let id_int = ClientLogic::uuidv7_u128(id_str).unwrap();
+        assert_eq!(id_int, 528914269453437118709760);
 
         logic.write_packet_to_transport(P::heartbeat()).unwrap();
         let bytes = client.transport_write_chan_rx.recv().unwrap();

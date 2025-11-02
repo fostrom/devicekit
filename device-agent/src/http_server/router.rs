@@ -69,7 +69,7 @@ fn exec_stop_agent(ctx: &SocketContext) -> Resp {
 
 fn exec_mail_op(ctx: &SocketContext, ack_type: MailAckType, req: Req) -> Resp {
     if let Some((_, mail_id_str)) = req.path.trim_start_matches("/mailbox/").split_once("/") {
-        match ClientLogic::to_pulse_id(mail_id_str) {
+        match ClientLogic::uuidv7_u128(mail_id_str) {
             Ok(mail_id) => mail_op(&ctx.client, ack_type, mail_id),
             Err(e) => FR::bad_request(e),
         }

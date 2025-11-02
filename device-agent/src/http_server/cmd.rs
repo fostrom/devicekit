@@ -4,7 +4,7 @@
 
 use super::response::{FailureResp as FR, Resp};
 use crate::moonlight_codec::{
-    ClientCmd, MailAckType, MoonlightClient, PulseType, ReturnChanResult as R,
+    ClientCmd, ClientLogic, MailAckType, MoonlightClient, PulseType, ReturnChanResult as R,
 };
 use serde_json::{Value, json};
 use std::{
@@ -28,7 +28,7 @@ fn make_request(
     }
 }
 
-pub fn mail_op(client: &MoonlightClient, ack_type: MailAckType, mail_id: u64) -> Resp {
+pub fn mail_op(client: &MoonlightClient, ack_type: MailAckType, mail_id: u128) -> Resp {
     let (result_tx, result_rx) = channel();
 
     match make_request(
@@ -64,7 +64,7 @@ pub fn mailbox_next(client: &MoonlightClient, header_only: bool) -> Resp {
 
             r.add_header("X-Mailbox-Size", mail.mailbox_size)
                 .add_header("X-Mailbox-Empty", false)
-                .add_header("X-Mail-ID", mail.pulse_id)
+                .add_header("X-Mail-ID", ClientLogic::uuidv7_str(mail.pulse_id))
                 .add_header("X-Mail-Name", mail.name)
                 .add_header("X-Mail-Has-Payload", mail.payload.is_some());
 
