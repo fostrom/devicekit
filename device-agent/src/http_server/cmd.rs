@@ -9,14 +9,33 @@ use crate::moonlight_codec::{
 use serde_json::{Value, json};
 use std::{
     sync::mpsc::{Receiver, RecvTimeoutError, channel},
-    time::Duration,
+    thread::sleep,
+    time::{Duration, Instant},
 };
+
+fn wait_for_connected(client: &MoonlightClient) -> bool {
+    let start = Instant::now();
+    while start.elapsed() < Duration::from_secs(10) {
+        if client.connected() {
+            return true;
+        }
+        sleep(Duration::from_millis(25));
+    }
+    client.connected()
+}
 
 fn make_request(
     client: &MoonlightClient,
     cmd: ClientCmd,
     result_rx: Receiver<R>,
 ) -> Result<R, Resp> {
+    // wait until a connection is established before making a request
+    if !wait_for_connected(client) {
+        return Err(FR::forbidden(
+            "not_connected: Device Agent is still connecting to Fostrom",
+        ));
+    }
+
     client.send_cmd(cmd);
 
     match result_rx.recv_timeout(Duration::from_secs(10)) {

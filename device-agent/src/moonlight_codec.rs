@@ -1029,54 +1029,73 @@ impl ClientLogic {
             Err(_) => return Err(DisconnectedReason::ForceCloseSocket),
         }
 
+        // Commands can arrive before authentication is complete (e.g. SDK calls immediately after
+        // starting the agent). These must not abort authentication.
+        //
+        // We buffer them and replay after the server confirms the connection.
+        let mut buffered_cmds: Vec<ClientCmd> = Vec::new();
+
         // Read the process mailbox until we can form a complete connect packet response.
         while let Ok(client_event) = self.proc_mailbox_chan.recv_timeout(Duration::from_secs(10)) {
-            if let ClientEvent::TransportRecv(bytes) = client_event {
-                self.codec.feed(&bytes);
+            match client_event {
+                ClientEvent::TransportRecv(bytes) => {
+                    self.codec.feed(&bytes);
 
-                let mut packets = match self.codec.process_packets() {
-                    Ok(packets) => packets.into_iter(),
-                    Err(_) => return Err(DisconnectedReason::ForceCloseSocket),
-                };
+                    let mut packets = match self.codec.process_packets() {
+                        Ok(packets) => packets.into_iter(),
+                        Err(_) => return Err(DisconnectedReason::ForceCloseSocket),
+                    };
 
-                if let Some(packet) = packets.next() {
-                    match ServerResp::handle_packet(packet) {
-                        ServerResp::Connected(mail_available) => {
-                            self.authenticated.store(true, Ordering::SeqCst);
+                    if let Some(packet) = packets.next() {
+                        match ServerResp::handle_packet(packet) {
+                            ServerResp::Connected(mail_available) => {
+                                self.authenticated.store(true, Ordering::SeqCst);
 
-                            let notification = ("connected".to_string(), "".to_string());
-                            let _ = self.notify_chan.send(notification);
-
-                            if mail_available {
-                                let notification = ("new_mail".to_string(), "".to_string());
+                                let notification = ("connected".to_string(), "".to_string());
                                 let _ = self.notify_chan.send(notification);
-                            }
 
-                            // If there are remaining packets sent along with connect
-                            // we can process them here before moving forward.
-                            if packets.len() > 0 {
-                                for packet in packets {
-                                    let server_resp = ServerResp::handle_packet(packet);
-                                    if let Some(disconnected_reason) =
-                                        self.handle_server_resp(server_resp)
-                                    {
-                                        return Err(disconnected_reason);
+                                if mail_available {
+                                    let notification = ("new_mail".to_string(), "".to_string());
+                                    let _ = self.notify_chan.send(notification);
+                                }
+
+                                // If there are remaining packets sent along with connect
+                                // we can process them here before moving forward.
+                                if packets.len() > 0 {
+                                    for packet in packets {
+                                        let server_resp = ServerResp::handle_packet(packet);
+                                        if let Some(disconnected_reason) =
+                                            self.handle_server_resp(server_resp)
+                                        {
+                                            return Err(disconnected_reason);
+                                        }
                                     }
                                 }
-                            }
 
-                            return Ok(());
+                                // Replay any commands received during authentication.
+                                for cmd in buffered_cmds.drain(..) {
+                                    if self.handle_cmd(cmd).is_err() {
+                                        return Err(DisconnectedReason::ForceCloseSocket);
+                                    }
+                                }
+
+                                return Ok(());
+                            }
+                            ServerResp::Disconnected(disconnected_reason) => {
+                                return Err(disconnected_reason);
+                            }
+                            _ => return Err(DisconnectedReason::ForceCloseSocket),
                         }
-                        ServerResp::Disconnected(disconnected_reason) => {
-                            return Err(disconnected_reason);
-                        }
-                        _ => return Err(DisconnectedReason::ForceCloseSocket),
+                    } else {
+                        continue;
                     }
-                } else {
+                }
+                ClientEvent::Cmd(cmd) => {
+                    buffered_cmds.push(cmd);
                     continue;
                 }
-            } else {
-                return Err(DisconnectedReason::ForceCloseSocket);
+                ClientEvent::Refresh | ClientEvent::HeartbeatTick => continue,
+                ClientEvent::TransportClose => return Err(DisconnectedReason::ForceCloseSocket),
             }
         }
 
@@ -2609,6 +2628,42 @@ mod tests {
         assert!(matches!(connect_packet, MoonlightPacket::Connect { .. }));
         client.ping_chan_rx.recv().unwrap();
         assert!(logic.authenticated.load(Ordering::SeqCst));
+    }
+
+    #[test]
+    fn test_client_logic_authentication_buffers_cmds() {
+        let (client, mut logic) = make_client_logic();
+
+        let (ret_tx, ret_rx) = channel();
+        client
+            .chan
+            .send(ClientEvent::Cmd(ClientCmd::SendPulse(
+                PulseType::Msg,
+                "hello".to_string(),
+                None,
+                ret_tx,
+            )))
+            .unwrap();
+
+        let p = Codec::encode(&P::connected(false, false)).unwrap();
+        client.chan.send(ClientEvent::TransportRecv(p)).unwrap();
+
+        logic.wait_for_authentication().unwrap();
+
+        // First write is the connect packet, then the buffered pulse command.
+        let bytes1 = client.transport_write_chan_rx.recv().unwrap();
+        let (pkt1, _) = Codec::decode(&bytes1).unwrap().unwrap();
+        assert!(matches!(pkt1, MoonlightPacket::Connect { .. }));
+
+        let bytes2 = client.transport_write_chan_rx.recv().unwrap();
+        let (pkt2, _) = Codec::decode(&bytes2).unwrap().unwrap();
+        assert!(matches!(pkt2, MoonlightPacket::Pulse { .. }));
+
+        // Not resolved yet; would be resolved once a PulseResp is received in start_loop.
+        assert!(matches!(
+            ret_rx.try_recv(),
+            Err(std::sync::mpsc::TryRecvError::Empty)
+        ));
     }
 
     #[test]
