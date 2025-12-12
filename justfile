@@ -342,6 +342,7 @@ setup-elixir:
 [group("version-bump")]
 version-bump-all:
     just version-bump-device-agent
+    just version-bump-dl-agent-script
     just version-bump-sdk-python
     just version-bump-sdk-js
     just version-bump-sdk-elixir
@@ -352,6 +353,34 @@ version-bump-all:
 [working-directory("device-agent/")]
 version-bump-device-agent:
     cargo bump patch
+
+
+[group("version-bump")]
+[working-directory("sdk/")]
+version-bump-dl-agent-script:
+    #!/bin/bash
+    set -euo pipefail
+
+    SCRIPT="dl-agent.sh"
+    AGENT="../device-agent/.release/{{BIN_OS_ARCH}}"
+
+    if [[ ! -x "$AGENT" ]]; then
+        echo "Built device agent not found or not executable: $AGENT" >&2
+        echo "Run 'just build-device-agent' or 'just release' first." >&2
+        exit 1
+    fi
+
+    VSN="$("$AGENT" version | tr -d '[:space:]')"
+    if [[ "$VSN" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        VSN="v$VSN"
+    fi
+    if [[ ! "$VSN" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        echo "Unexpected version output from '$AGENT version': '$VSN'" >&2
+        exit 1
+    fi
+
+    VSN="$VSN" perl -0pi -e 'our $n=0; $n += s/^(?:qq\{)?VERSION="v\d+\.\d+\.\d+"(?:\})?$/VERSION="$ENV{VSN}"/mg; END { die "VERSION line not updated\n" if $n != 1 }' "$SCRIPT"
+    echo "Updated $SCRIPT VERSION to $VSN"
 
 
 # VERSION BUMP FOR PYTHON SDK
