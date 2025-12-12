@@ -29,7 +29,13 @@ download_file() {
     if command -v curl >/dev/null 2>&1; then
         curl -fsSL --connect-timeout 10 --max-time 300 "$URL" -o "$OUTPUT" 2>/dev/null
     elif command -v wget >/dev/null 2>&1; then
-        wget -q --timeout=10 --tries=1 -O "$OUTPUT" "$URL" 2>/dev/null
+      # BusyBox wget often lacks GNU long opts like --tries/--timeout.
+      if wget --help 2>&1 | grep -q -- '--tries'; then
+          wget -q --timeout=10 --tries=1 -O "$OUTPUT" "$URL" 2>/dev/null
+      else
+          # BusyBox-compatible fallback (fewer assumptions)
+          wget -q -O "$OUTPUT" "$URL" 2>/dev/null
+      fi
     else
         die "No download tool found (curl or wget required)"
     fi
@@ -50,7 +56,9 @@ try_download() {
 
 create_temp_dir() {
     if command -v mktemp >/dev/null 2>&1; then
-        mktemp -d 2>/dev/null || mktemp -d -t 'fostrom'
+        mktemp -d -t 'fostrom.XXXXXX' 2>/dev/null \
+          || mktemp -d "${TMPDIR:-/tmp}/fostrom.XXXXXX" 2>/dev/null \
+          || mktemp -d 2>/dev/null
     else
         TEMP_DIR="/tmp/fostrom.$$"
         mkdir -p "$TEMP_DIR" || die "Cannot create temporary directory"
@@ -60,12 +68,20 @@ create_temp_dir() {
 
 verify_checksum() {
     CHECKSUM_FILE="$1"
+    TARGET_FILE="$2"
 
-    # Try sha256sum (Linux) first, then shasum (macOS)
+    HASH_FILE="$TEMP_DIR/$TARGET_FILE.sha256"
+
+    awk -v f="$TARGET_FILE" '
+      { name=$2; sub(/^\*/, "", name) }
+      name==f { print; found=1 }
+      END { exit !found }
+    ' "$CHECKSUM_FILE" > "$HASH_FILE" || return 1
+
     if command -v sha256sum >/dev/null 2>&1; then
-        sha256sum -c --ignore-missing "$CHECKSUM_FILE" >/dev/null 2>&1
+        sha256sum -c "$HASH_FILE" >/dev/null 2>&1
     elif command -v shasum >/dev/null 2>&1; then
-        shasum -a 256 -c --ignore-missing "$CHECKSUM_FILE" >/dev/null 2>&1
+        shasum -a 256 -c "$HASH_FILE" >/dev/null 2>&1
     else
         printf "Warning: No checksum verification tool found, skipping verification\n" >&2
         return 0
@@ -94,7 +110,7 @@ download_and_verify() {
 
     # Verify checksum
     cd "$TEMP_DIR"
-    if ! verify_checksum "fostrom-device-agent.sha256"; then
+    if ! verify_checksum "fostrom-device-agent.sha256" "$FILENAME"; then
         die "Checksum verification failed"
     fi
     cd - >/dev/null
@@ -131,13 +147,13 @@ main() {
             case "$ARCH" in
                 x86_64|amd64)  ARCH="amd64" ;;
                 aarch64|arm64) ARCH="arm64" ;;
-                armv6l)        ARCH="armv6" ;;
+                armv6l)        ARCH="armv6hf" ;;
                 riscv64)       ARCH="riscv64" ;;
                 *)             die "Unsupported architecture: $ARCH" ;;
             esac
             ;;
         Darwin*)
-            OS="apple"
+            OS="macos"
             case "$ARCH" in
                 x86_64|amd64)  ARCH="amd64" ;;
                 aarch64|arm64) ARCH="arm64" ;;
@@ -159,7 +175,7 @@ main() {
     download_and_verify "$FILENAME" "$LOCATION"
 
     # Remove quarantine on macOS
-    if [ "$OS" = "apple" ]; then
+    if [ "$OS" = "macos" ]; then
         xattr -r -d com.apple.quarantine "$LOCATION/$FILENAME" 2>/dev/null || true
     fi
 
