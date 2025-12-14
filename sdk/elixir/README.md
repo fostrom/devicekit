@@ -6,6 +6,7 @@ Docs: <https://hexdocs.pm/fostrom>
 
 The Fostrom Device SDK for Elixir works on Linux and macOS, and helps you quickly integrate, start monitoring, and controlling your IoT devices in just a few lines of code.
 
+
 ## Installation
 
 The package can be installed by adding `fostrom` to your list of dependencies in `mix.exs`:
@@ -31,6 +32,7 @@ config :fostrom, :config,
   handler: MyApp.FostromHandler
 ```
 
+
 ## Defining a Handler
 
 ```elixir
@@ -45,6 +47,7 @@ defmodule MyApp.FostromHandler do
 end
 ```
 
+
 ## Sending Datapoints and Messages
 
 ```elixir
@@ -53,6 +56,25 @@ Fostrom.send_datapoint("<packet-schema-name>", %{ ...payload })
 
 # To send a message:
 Fostrom.send_msg("<packet-schema-name>", %{ ...payload })
+```
+
+
+## Using in a Livebook or single-file Elixir script
+
+If you want to quickly try Fostrom in a Livebook or single-file Elixir script, you can leverage `Mix.install()` to get up and running quickly.
+
+```elixir
+Application.put_env(:fostrom, :config,
+  fleet_id: "<fleet-id>",
+  device_id: "<device-id>",
+  device_secret: "<device-secret>",
+  env: :dev
+)
+
+Mix.install([:fostrom])
+
+# Fostrom is now running
+Fostrom.send_datapoint("<packet-schema-name>", %{ ...payload })
 ```
 
 
