@@ -41,7 +41,7 @@ classifiers = [
 
 [project.urls]
 "Fostrom" = "https://fostrom.io"
-"SDK Docs" = "https://docs.fostrom.io/sdk/py"
+"SDK Docs" = "https://fostrom.io/docs/sdk/py"
 
 [build-system]
 requires = ["hatchling"]

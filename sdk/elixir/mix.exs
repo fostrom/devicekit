@@ -29,7 +29,7 @@ defmodule Fostrom.MixProject do
       licenses: ["Apache-2.0"],
       links: %{
         "Fostrom" => "https://fostrom.io",
-        "SDK Docs" => "https://docs.fostrom.io/sdk/elixir"
+        "SDK Docs" => "https://fostrom.io/docs/sdk/elixir"
       }
     ]
   end

@@ -16,7 +16,7 @@ const HELP_TEXT: &str = concat!(
     r#"
 
 The Fostrom Device Agent is used by our Device SDKs.
-Visit the Fostrom Docs [https://docs.fostrom.io/] for more information.
+Visit the Fostrom Docs [https://fostrom.io/docs/] for more information.
 
 USAGE:
     start               Start in daemon mode

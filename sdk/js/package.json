@@ -17,7 +17,7 @@
     "hardware",
     "raspberry"
   ],
-  "homepage": "https://docs.fostrom.io/sdk/js",
+  "homepage": "https://fostrom.io/docs/sdk/js",
   "license": "Apache-2.0",
   "author": "Fostrom <support@fostrom.io> (https://fostrom.io)",
   "files": [

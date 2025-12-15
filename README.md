@@ -13,7 +13,7 @@ We have Device SDKs for three languages currently:
 * Python
 * JavaScript (Node.js/Bun)
 
-Refer to the [SDK Docs](https://docs.fostrom.io/sdk/) for more information about how to use our SDKs and how they work.
+Refer to the [SDK Docs](https://fostrom.io/docs/sdk/) for more information about how to use our SDKs and how they work.
 
 ## Licenses
 
