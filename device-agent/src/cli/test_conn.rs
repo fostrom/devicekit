@@ -61,7 +61,7 @@ fn run_inner() -> Result<()> {
     );
 
     let start = Instant::now();
-    let mut stream = moonlight_socket::prod_tls_open(PROD_PORT).context("tls_open_failed")?;
+    let mut stream = moonlight_socket::tls_open(PROD_PORT).context("tls_open_failed")?;
     let open_elapsed = start.elapsed();
 
     stream

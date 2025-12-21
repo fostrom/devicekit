@@ -117,8 +117,9 @@ fn tcp_open(port: u16) -> Result<TcpStream> {
     make_tcp_socket(format!("127.0.0.1:{port}"))
 }
 
-/// Open a TLS connection to device.fostrom.dev at the given port
-fn tls_open(port: u16) -> Result<TlsStream> {
+/// Open a TLS connection to device.fostrom.dev at the given port.
+/// This function is public because it is also directly called by `test-conn`
+pub fn tls_open(port: u16) -> Result<TlsStream> {
     let socket = make_tcp_socket(format!("device.fostrom.dev:{port}"))?;
     let conn = ClientConnection::new(tls_conf(), "device.fostrom.dev".try_into()?)?;
     Ok(StreamOwned::new(conn, socket))
@@ -271,13 +272,16 @@ mod tests {
             .set_read_timeout(Some(Duration::from_secs(5)))
             .expect("set read timeout");
 
-        // Send any payload
-        stream.write_all(&[1, 0]).expect("write to tls server");
-        stream.flush().expect("flush after write");
+        // Send client_close_connection packet
+        write_all_retrying(&mut stream, &[1, 0], Duration::from_secs(2))
+            .expect("write to tls server");
 
-        let mut buf = vec![];
-        stream.read_to_end(&mut buf).unwrap();
-        assert_eq!(buf.len(), 0);
+        // Ensure we receive server_close_connection packet
+        let mut buf = [0u8; 2];
+        stream
+            .read_exact(&mut buf)
+            .expect("should receive server_close_connection");
+        assert_eq!(buf, [1, 1]);
 
         // Close gracefully
         tls_close(&mut stream);
