@@ -1016,12 +1016,19 @@ impl ClientLogic {
         )
     }
 
+    fn wait_for_authentication(&mut self) -> Result<(), DisconnectedReason> {
+        self.wait_for_authentication_with_timeout(Duration::from_secs(10))
+    }
+
     /// The primary purpose of this function is to ensure the
     /// transport stream gets authenticated before any other events happen.
     /// This function needs to be called before anything else has the opportunity
     /// to write to the proc_mailbox_chan channel, and waits to receive bytes
     /// from the transport.
-    fn wait_for_authentication(&mut self) -> Result<(), DisconnectedReason> {
+    fn wait_for_authentication_with_timeout(
+        &mut self,
+        timeout: Duration,
+    ) -> Result<(), DisconnectedReason> {
         let connect_packet = self.connect_packet_bytes.clone();
 
         match self.transport_write_chan.send(connect_packet) {
@@ -1036,7 +1043,7 @@ impl ClientLogic {
         let mut buffered_cmds: Vec<ClientCmd> = Vec::new();
 
         // Read the process mailbox until we can form a complete connect packet response.
-        while let Ok(client_event) = self.proc_mailbox_chan.recv_timeout(Duration::from_secs(10)) {
+        while let Ok(client_event) = self.proc_mailbox_chan.recv_timeout(timeout) {
             match client_event {
                 ClientEvent::TransportRecv(bytes) => {
                     self.codec.feed(&bytes);
@@ -2735,7 +2742,9 @@ mod tests {
         client.chan.send(ClientEvent::Refresh).unwrap();
 
         assert_eq!(
-            logic.wait_for_authentication().unwrap_err(),
+            logic
+                .wait_for_authentication_with_timeout(Duration::from_millis(500))
+                .unwrap_err(),
             DisconnectedReason::ForceCloseSocket
         );
         let bytes = client.transport_write_chan_rx.recv().unwrap();
