@@ -3,10 +3,11 @@ use crate::{
     moonlight_socket,
 };
 use anyhow::{Context, Result, anyhow};
+use rustls::{ClientConnection, StreamOwned};
 use sha2::{Digest, Sha256};
 use std::{
     io::{ErrorKind, Read},
-    net::{SocketAddr, ToSocketAddrs},
+    net::{SocketAddr, TcpStream, ToSocketAddrs},
     time::{Duration, Instant},
 };
 
@@ -125,7 +126,7 @@ fn resolve_prod_addrs() -> Result<Vec<SocketAddr>> {
 }
 
 fn force_tls_handshake(
-    stream: &mut rustls::StreamOwned<rustls::ClientConnection, std::net::TcpStream>,
+    stream: &mut StreamOwned<ClientConnection, TcpStream>,
     timeout: Duration,
 ) -> Result<()> {
     let start = Instant::now();
@@ -201,7 +202,7 @@ fn wait_for_server_close<R: Read>(reader: &mut R, total_timeout: Duration) -> Re
     ))
 }
 
-fn print_tls_details(stream: &rustls::StreamOwned<rustls::ClientConnection, std::net::TcpStream>) {
+fn print_tls_details(stream: &StreamOwned<ClientConnection, TcpStream>) {
     if let Some(v) = stream.conn.protocol_version() {
         println!("tls: protocol={v:?}");
     } else {
