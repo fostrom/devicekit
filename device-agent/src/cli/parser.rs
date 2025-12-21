@@ -20,9 +20,8 @@ Visit the Fostrom Docs [https://fostrom.io/docs/] for more information.
 
 USAGE:
     start               Start in daemon mode
-      --tcp               Enable TCP socket (default: false)
     run                 Start in blocking mode
-      --tcp               Enable TCP socket (default: false)
+    test-conn           Test connectivity to Fostrom
     status              Get the agent's status
     stop                Stop the device agent
     version             Print version
@@ -56,6 +55,10 @@ pub fn parse() -> Option<ParsedAction> {
 
     if args.len() == 1 && args[0] == "status" {
         return Some(ParsedAction::Status);
+    }
+
+    if !args.is_empty() && (args[0] == "test-conn" || args[0] == "test-connection") {
+        return Some(ParsedAction::TestConn);
     }
 
     if !args.is_empty() && (args[0] == "run" || args[0] == "start" || args[0] == "daemon") {

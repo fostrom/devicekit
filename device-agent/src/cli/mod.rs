@@ -7,10 +7,12 @@ mod parser;
 mod start;
 mod status;
 mod stop;
+mod test_conn;
 
 use crate::moonlight_codec::{ConnectMode, Creds};
 use start::{start_agent, start_daemon_child};
 use status::agent_status;
+use std::process::exit;
 use stop::stop_agent;
 
 pub static TMP_DIR: &str = "/tmp/fostrom";
@@ -35,6 +37,7 @@ pub enum ParsedAction {
     Daemon(AgentConfig),
     Stop,
     Status,
+    TestConn,
 }
 
 pub fn exec() {
@@ -44,6 +47,7 @@ pub fn exec() {
             ParsedAction::Daemon(config) => start_daemon_child(config),
             ParsedAction::Stop => stop_agent(),
             ParsedAction::Status => agent_status(),
+            ParsedAction::TestConn => exit(test_conn::run()),
         }
     }
 }
