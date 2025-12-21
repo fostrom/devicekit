@@ -6,7 +6,7 @@ use anyhow::{Context, Result, anyhow};
 use rustls::{ClientConnection, StreamOwned};
 use sha2::{Digest, Sha256};
 use std::{
-    io::{ErrorKind, Read},
+    io::{ErrorKind, Read, Write},
     net::{SocketAddr, TcpStream, ToSocketAddrs},
     time::{Duration, Instant},
 };
@@ -16,7 +16,6 @@ const PROD_PORT: u16 = 8484;
 
 const TOTAL_WAIT_FOR_SERVER_CLOSE: Duration = Duration::from_secs(5);
 const READ_TIMEOUT: Duration = Duration::from_millis(250);
-const WRITE_TIMEOUT: Duration = Duration::from_secs(2);
 const TLS_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(5);
 
 pub fn run() -> i32 {
@@ -92,7 +91,8 @@ fn run_inner() -> Result<()> {
         .context("encode_close_connection_failed")?;
 
     let write_start = Instant::now();
-    moonlight_socket::write_all_retrying(&mut stream, &close_bytes, WRITE_TIMEOUT)
+    stream
+        .write_all(&close_bytes)
         .context("write_close_connection_failed")?;
     println!(
         "moonlight: sent_close ok bytes={} elapsed_ms={}",
