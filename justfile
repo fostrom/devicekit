@@ -155,7 +155,7 @@ codesign-mac-binaries:
       if [[ ! -f "$file" ]]; then return 0; fi
       if [[ "$(uname)" == "Darwin" ]]; then
         codesign -s - "$file"
-      elif uname -r | grep -qi orbstack; then
+      elif command -v mac >/dev/null 2>&1; then
         mac codesign -s - "$file"
       else
         if [[ -z "$CODESIGN_WARNED" ]]; then
