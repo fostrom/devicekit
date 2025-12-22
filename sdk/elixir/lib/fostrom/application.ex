@@ -13,6 +13,7 @@ defmodule Fostrom.Application do
         Supervisor.start_link([], opts)
 
       config ->
+        System.at_exit(fn _status -> stop(nil) end)
         Fostrom.DeviceAgent.start(config)
 
         children = [
@@ -22,5 +23,16 @@ defmodule Fostrom.Application do
 
         Supervisor.start_link(children, opts)
     end
+  end
+
+  @impl true
+  def stop(_state) do
+    if conf = Application.get_env(:fostrom, :config) do
+      if conf[:stop_agent_on_terminate] do
+        Fostrom.DeviceAgent.stop()
+      end
+    end
+
+    :ok
   end
 end

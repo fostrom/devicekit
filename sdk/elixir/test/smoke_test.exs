@@ -63,7 +63,6 @@ defmodule Fostrom.SmokeTests do
     assert is_map(resp.body)
 
     :ok = Application.stop(:fostrom)
-    Fostrom.DeviceAgent.stop()
     false = File.exists?("/tmp/fostrom/agent.sock")
   end
 end
