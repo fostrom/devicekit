@@ -157,6 +157,7 @@ fn socket_read(stream: &mut Stream) -> Result<Option<Vec<u8>>> {
 const MAX_PENDING_WRITE_AGE: Duration = Duration::from_secs(10);
 const WRITE_TICK_MAX_BYTES: usize = 64 * 1024;
 const WRITE_TICK_MAX_MESSAGES: usize = 32;
+const WRITE_CALL_MAX_BYTES: usize = 16 * 1024;
 const RETRY_SLEEP: Duration = Duration::from_millis(5);
 
 fn push_bytes_to_socket(
@@ -202,8 +203,10 @@ fn push_bytes_to_socket(
             break;
         };
         let remaining = &buf[*pending_offset..];
+        let write_len = remaining.len().min(WRITE_CALL_MAX_BYTES);
+        let write_slice = &remaining[..write_len];
 
-        match stream.write(remaining) {
+        match stream.write(write_slice) {
             Ok(0) => return Err(anyhow!("socket_write_zero_bytes")),
             Ok(n) => {
                 *pending_offset += n;
