@@ -69,6 +69,7 @@ build:
 [group("build")]
 release:
     just build
+    just test-extensive
     just cross-compile-device-agent
 
 
@@ -254,6 +255,29 @@ verify-sdk-python-build:
       exit 1
     fi
 
+
+# -------------------------
+# --- EXTENSIVE TESTING ---
+# -------------------------
+
+[private]
+[group("test-extensive")]
+test-extensive:
+    just test-extensive-sdk-python
+
+
+# TEST PYTHON SDK WITH ALL SUPPORTED PYTHON VERSIONS
+[private]
+[group("test-extensive")]
+[working-directory("sdk/python/")]
+test-extensive-sdk-python:
+    # Based on: https://simonwillison.net/2025/Oct/9/uv-test
+    uvx --python 3.10 --isolated --with 'fostrom @ .' pytest
+    uvx --python 3.11 --isolated --with 'fostrom @ .' pytest
+    uvx --python 3.12 --isolated --with 'fostrom @ .' pytest
+    uvx --python 3.13 --isolated --with 'fostrom @ .' pytest
+    uvx --python 3.14 --isolated --with 'fostrom @ .' pytest
+    uvx --python 3.15 --isolated --with 'fostrom @ .' pytest
 
 
 # -----------
