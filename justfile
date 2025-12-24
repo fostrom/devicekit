@@ -331,6 +331,7 @@ version-bump-all:
 [working-directory("device-agent/")]
 version-bump-device-agent:
     cargo bump patch
+    just build-device-agent
 
 
 [group("version-bump")]

@@ -4,7 +4,7 @@ defmodule Fostrom.MixProject do
   def project do
     [
       app: :fostrom,
-      version: "0.0.15",
+      version: "0.0.16",
       elixir: "~> 1.18",
       start_permanent: Mix.env() == :prod,
       compilers: Mix.compilers() ++ [:download_agent],
