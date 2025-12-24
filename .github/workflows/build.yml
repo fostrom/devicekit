@@ -32,7 +32,33 @@ jobs:
         with:
           push: false
 
-  build-on-linux:
+  build-freebsd-amd64:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: vmactions/freebsd-vm@v1.3.0
+        with:
+          release: "15.0"
+          usesh: true
+          copyback: false
+          prepare: |
+            pkg install -y bash ca_root_nss cmake curl git jq just unzip wget \
+              node npm-node22 python310 rust uv
+
+            ln -s /usr/local/bin/bash /bin/bash
+
+          run: |
+            just build-device-agent
+            just copy-device-agent-to-sdk-js
+            just copy-device-agent-to-sdk-python
+            cd sdk/js/ && node --test
+            cd ../python/
+            rm -rf dist/
+            uv build
+            just verify-sdk-python-build
+            uvx --with 'fostrom @ .' pytest
+
+  build-ubuntu-amd64:
     runs-on: ubuntu-latest
     env:
       PYTHON_VERSION: "3.10"
@@ -89,7 +115,7 @@ jobs:
       - run: just -v setup
       - run: just -v release
 
-  build-on-macos:
+  build-macos-arm64:
     runs-on: macos-latest
     env:
       PYTHON_VERSION: "3.10"

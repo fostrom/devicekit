@@ -10,6 +10,8 @@ RISCV_LINUX := "riscv64gc-unknown-linux-musl"
 AMD_LINUX := "x86_64-unknown-linux-musl"
 ARM_MAC := "aarch64-apple-darwin"
 AMD_MAC := "x86_64-apple-darwin"
+# ARM_FREEBSD  := "aarch64-unknown-freebsd"
+# AMD_FREEBSD  := "x86_64-unknown-freebsd"
 
 PYTHON_VERSION := "3.10"
 export UV_PYTHON := PYTHON_VERSION
@@ -20,6 +22,8 @@ OS := if os() == "linux" {
     "linux"
 } else if os() == "macos" {
     "macos"
+} else if os() == "freebsd" {
+    "freebsd"
 } else {
     error("unsupported build architecture")
 }
@@ -35,31 +39,6 @@ ARCH := if arch() == "aarch64" {
 } else {
     error("unsupported build os")
 }
-
-TARGET := if OS == "linux" {
-    if ARCH == "arm64" {
-        ARM_LINUX
-    } else if ARCH == "amd64" {
-        AMD_LINUX
-    } else if ARCH == "riscv64" {
-        RISCV_LINUX
-    } else if ARCH == "armv6hf" {
-        ARMV6HF_LINUX
-    } else {
-        error("unsupported build target")
-    }
-} else if OS == "macos" {
-    if ARCH == "arm64" {
-        ARM_MAC
-    } else if ARCH == "amd64" {
-        AMD_MAC
-    } else {
-        error("unsupported build target")
-    }
-} else {
-    error("unsupported build target")
-}
-
 
 BIN := "fostrom-device-agent"
 BIN_OS_ARCH := BIN + "-" + OS + "-" + ARCH
@@ -101,11 +80,10 @@ build-device-agent:
     cargo build --release {{QUIET}}
     cargo test --release {{QUIET}}
     cargo run {{QUIET}} --release -- stop > /dev/null
-    cargo zigbuild --release --target {{TARGET}} {{QUIET}}
 
     rm -rf .release
     mkdir -p .release
-    install -m 0755 "target/{{TARGET}}/release/{{BIN}}" ".release/{{BIN_OS_ARCH}}"
+    install -m 0755 "target/release/{{BIN}}" ".release/{{BIN_OS_ARCH}}"
 
 
 # CROSS COMPILE DEVICE AGENT FOR ALL TARGETS
