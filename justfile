@@ -503,7 +503,7 @@ upload-device-agent-to-cdn cdn:
 [group("publish")]
 [working-directory("device-agent/")]
 upload-to-dryrun-cdn vsn file:
-    echo "will upload: {{file}}"
+    echo "will upload: {{vsn}} {{file}}"
     [ -f ".release/{{file}}" ] || (echo "Error: {{file}} does not exist" && exit 1)
 
 
