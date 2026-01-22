@@ -31,6 +31,14 @@ pub fn handle_event_stream(mut socket: Socket, ctx: &SocketContext) {
         return;
     };
 
+    if ctx.client.connected() {
+        if !socket.send(notification("new_mail".to_string(), "".to_string()).as_bytes()) {
+            ctx.notify.unsubscribe(token);
+            return;
+        }
+        last_keep_alive = Instant::now();
+    }
+
     loop {
         if ctx.shutdown_flag.load(Ordering::Relaxed) {
             break;
