@@ -5,6 +5,8 @@ import path from 'node:path'
 import fs from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import http from 'node:http'
+import { EventEmitter } from 'node:events'
+import { Readable } from 'node:stream'
 import { parseJSON } from '../json.js'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -166,6 +168,112 @@ test('start Fostrom SDK and verify agent headers', { concurrency: false }, async
 
     assert.ok(response.bodyJson && typeof response.bodyJson === 'object')
   } finally {
+    await app.shutdown(true)
+    if (previousLocalMode === undefined) delete process.env.FOSTROM_LOCAL_MODE
+    else process.env.FOSTROM_LOCAL_MODE = previousLocalMode
+    await waitForSocketAbsence()
+  }
+})
+
+test('sse reconnect delivers new_mail after reconnect', { concurrency: false }, async (t) => {
+  if (!ensureAgentBinary(t)) return
+
+  Fostrom.stopAgent()
+  await waitForSocketAbsence()
+
+  const previousLocalMode = process.env.FOSTROM_LOCAL_MODE
+  process.env.FOSTROM_LOCAL_MODE = 'true'
+
+  const originalRequest = http.request
+  let eventRequests = 0
+  let mailboxRequests = 0
+  const received = []
+
+  http.request = (options, callback) => {
+    if (!options || typeof options !== 'object') {
+      return originalRequest(options, callback)
+    }
+
+    const pathname = options.path || ''
+    const isAgentSocket = options.socketPath === SOCKET_PATH
+
+    if (isAgentSocket && pathname === '/events') {
+      eventRequests += 1
+      const req = new EventEmitter()
+      req.end = () => {
+        const res = new Readable({ read() {} })
+        res.statusCode = 200
+        res.headers = { 'content-type': 'text/event-stream' }
+        if (callback) callback(res)
+        if (eventRequests === 1) {
+          res.push('event: connected\n\n')
+        } else {
+          res.push('event: new_mail\n\n')
+        }
+        setTimeout(() => res.push(null), 20)
+      }
+      req.destroy = () => {
+        req.emit('close')
+      }
+      return req
+    }
+
+    if (isAgentSocket && pathname === '/mailbox/next') {
+      mailboxRequests += 1
+      const req = new EventEmitter()
+      req.end = () => {
+        const res = new Readable({ read() {} })
+        res.statusCode = 200
+        if (mailboxRequests === 1) {
+          res.headers = {
+            'content-type': 'application/json',
+            'x-mailbox-empty': 'false',
+            'x-mailbox-size': '1',
+            'x-mail-id': 'mail-1',
+            'x-mail-name': 'test',
+            'x-mail-has-payload': 'true',
+          }
+        } else {
+          res.headers = {
+            'content-type': 'application/json',
+            'x-mailbox-empty': 'true',
+          }
+        }
+        if (callback) callback(res)
+        if (mailboxRequests === 1) {
+          res.push(JSON.stringify({ ok: true }))
+        }
+        res.push(null)
+      }
+      req.destroy = () => {
+        req.emit('close')
+      }
+      return req
+    }
+
+    return originalRequest(options, callback)
+  }
+
+  const app = new Fostrom({
+    fleet_id: FLEET_ID,
+    device_id: DEVICE_ID,
+    device_secret: DEVICE_SECRET,
+    stopAgentOnExit: true,
+    log: false,
+  })
+
+  app.onMail = async (mail) => {
+    received.push(mail)
+  }
+
+  try {
+    await app.start()
+    await new Promise((resolve) => setTimeout(resolve, 800))
+    assert.ok(eventRequests >= 2)
+    assert.equal(received.length, 1)
+    assert.equal(received[0].name, 'test')
+  } finally {
+    http.request = originalRequest
     await app.shutdown(true)
     if (previousLocalMode === undefined) delete process.env.FOSTROM_LOCAL_MODE
     else process.env.FOSTROM_LOCAL_MODE = previousLocalMode

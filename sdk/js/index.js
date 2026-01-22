@@ -281,6 +281,7 @@ export default class Fostrom {
   async #open_event_stream() {
     if (this.#stopped) return
     if (this.#sseReq) return
+    this.#sseBuffer = ""
     const { fleet_id, device_id } = this.#creds
     const options = {
       socketPath: Fostrom.#SOCK,
@@ -294,38 +295,26 @@ export default class Fostrom {
       }
     }
 
+    const scheduleReconnect = (delay) => {
+      this.#sseReq = null
+      this.#sseBuffer = ""
+      if (!this.#stopped) {
+        this.#reconnectTimer = setTimeout(() => this.#open_event_stream(), delay)
+      }
+    }
+
     const req = http.request(options, (res) => {
       res.setEncoding('utf8')
       res.on('data', (chunk) => {
         this.#sseBuffer = Fostrom.#parse_events(this.#sseBuffer, chunk, this.#event_handler.bind(this))
       })
-      res.on('error', () => {
-        this.#sseReq = null
-        if (!this.#stopped) {
-          this.#reconnectTimer = setTimeout(() => this.#open_event_stream(), 500)
-        }
-      })
-      res.on('aborted', () => {
-        this.#sseReq = null
-        if (!this.#stopped) {
-          this.#reconnectTimer = setTimeout(() => this.#open_event_stream(), 500)
-        }
-      })
-      res.on('end', () => {
-        this.#sseReq = null
-        if (!this.#stopped) {
-          this.#reconnectTimer = setTimeout(() => this.#open_event_stream(), 250)
-        }
-      })
+      res.on('error', () => scheduleReconnect(500))
+      res.on('aborted', () => scheduleReconnect(500))
+      res.on('close', () => scheduleReconnect(500))
+      res.on('end', () => scheduleReconnect(250))
     })
 
-    req.on('error', (_err) => {
-      this.#sseReq = null
-      if (!this.#stopped) {
-        this.#reconnectTimer = setTimeout(() => this.#open_event_stream(), 500)
-      }
-    })
-
+    req.on('error', (_err) => scheduleReconnect(500))
     req.end()
     this.#sseReq = req
   }
