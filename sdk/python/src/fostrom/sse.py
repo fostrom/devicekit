@@ -43,7 +43,7 @@ def _parse_events(buffer: str, chunk: str, handler: Callable[[dict[str, object]]
                 import json
 
                 with contextlib.suppress(Exception):
-                    event["data"] = json.loads(event["data"])  # type: ignore[assignment]
+                    event["data"] = json.loads(event["data"])
             if event.get("event"):
                 handler(event)
             event = {}
@@ -72,8 +72,8 @@ class SSEThread(threading.Thread):
         self._stop_event.set()
 
     def run(self) -> None:
-        buffer = ""
         while not self._stop_event.is_set():
+            buffer = ""
             sock: socket.socket | None = None
             try:
                 sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
