@@ -40,6 +40,7 @@ export default class Fostrom {
   #log = true
   #creds = {}
   #sseBuffer = ""
+  #sseEvent = {}
   #sseReq = null
   #reconnectTimer = null
   #stopped = true
@@ -52,7 +53,7 @@ export default class Fostrom {
   onMail = async mail => {
     if (this.#log) {
       console.warn(`[Fostrom] Received Mail (Mailbox Size: ${mail.mailbox_size}): ${mail.name} -> ID ${mail.id}`)
-      console.warn("              Auto-Acknowledging Mail. Define Mail Handler to handle incoming mail.\n              `fostrom.on_mail = async (mail) => { ...; await mail.ack(); }`\n")
+      console.warn("              Auto-Acknowledging Mail. Define Mail Handler to handle incoming mail.\n              `fostrom.onMail = async (mail) => { ...; await mail.ack(); }`\n")
     }
     await mail.ack()
   }
@@ -192,6 +193,8 @@ export default class Fostrom {
       }
     } catch { }
     this.#sseReq = null
+    this.#sseBuffer = ""
+    this.#sseEvent = {}
     const doStop = (stopAgent === null) ? this.#stopAgentOnExit : Boolean(stopAgent)
     if (doStop) Fostrom.stopAgent()
   }
@@ -282,6 +285,7 @@ export default class Fostrom {
     if (this.#stopped) return
     if (this.#sseReq) return
     this.#sseBuffer = ""
+    this.#sseEvent = {}
     const { fleet_id, device_id } = this.#creds
     const options = {
       socketPath: Fostrom.#SOCK,
@@ -298,6 +302,7 @@ export default class Fostrom {
     const scheduleReconnect = (delay) => {
       this.#sseReq = null
       this.#sseBuffer = ""
+      this.#sseEvent = {}
       if (!this.#stopped) {
         this.#reconnectTimer = setTimeout(() => this.#open_event_stream(), delay)
       }
@@ -306,7 +311,14 @@ export default class Fostrom {
     const req = http.request(options, (res) => {
       res.setEncoding('utf8')
       res.on('data', (chunk) => {
-        this.#sseBuffer = Fostrom.#parse_events(this.#sseBuffer, chunk, this.#event_handler.bind(this))
+        const parsed = Fostrom.#parse_events(
+          this.#sseBuffer,
+          chunk,
+          this.#sseEvent,
+          this.#event_handler.bind(this)
+        )
+        this.#sseBuffer = parsed.buffer
+        this.#sseEvent = parsed.event
       })
       res.on('error', () => scheduleReconnect(500))
       res.on('aborted', () => scheduleReconnect(500))
@@ -376,12 +388,12 @@ export default class Fostrom {
     })
   }
 
-  static #parse_events(buffer, chunk, event_handler) {
+  static #parse_events(buffer, chunk, currentEvent, event_handler) {
     buffer += chunk
     const lines = buffer.split('\n')
     buffer = lines.pop() || ''
 
-    let event = {}
+    let event = currentEvent || {}
     for (const raw of lines) {
       const line = raw.replace(/\r$/, '')
       if (line === '') {
@@ -400,7 +412,7 @@ export default class Fostrom {
       }
     }
 
-    return buffer
+    return { buffer, event }
   }
 
   async #deliverMail(mail) {

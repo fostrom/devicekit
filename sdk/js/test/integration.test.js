@@ -201,7 +201,7 @@ test('sse reconnect delivers new_mail after reconnect', { concurrency: false }, 
       eventRequests += 1
       const req = new EventEmitter()
       req.end = () => {
-        const res = new Readable({ read() {} })
+        const res = new Readable({ read() { } })
         res.statusCode = 200
         res.headers = { 'content-type': 'text/event-stream' }
         if (callback) callback(res)
@@ -222,7 +222,7 @@ test('sse reconnect delivers new_mail after reconnect', { concurrency: false }, 
       mailboxRequests += 1
       const req = new EventEmitter()
       req.end = () => {
-        const res = new Readable({ read() {} })
+        const res = new Readable({ read() { } })
         res.statusCode = 200
         if (mailboxRequests === 1) {
           res.headers = {
@@ -271,6 +271,100 @@ test('sse reconnect delivers new_mail after reconnect', { concurrency: false }, 
     await new Promise((resolve) => setTimeout(resolve, 800))
     assert.ok(eventRequests >= 2)
     assert.equal(received.length, 1)
+    assert.equal(received[0].name, 'test')
+  } finally {
+    http.request = originalRequest
+    await app.shutdown(true)
+    if (previousLocalMode === undefined) delete process.env.FOSTROM_LOCAL_MODE
+    else process.env.FOSTROM_LOCAL_MODE = previousLocalMode
+    await waitForSocketAbsence()
+  }
+})
+
+test('sse parser handles split new_mail frame across chunks', { concurrency: false }, async (t) => {
+  if (!ensureAgentBinary(t)) return
+
+  Fostrom.stopAgent()
+  await waitForSocketAbsence()
+
+  const previousLocalMode = process.env.FOSTROM_LOCAL_MODE
+  process.env.FOSTROM_LOCAL_MODE = 'true'
+
+  const originalRequest = http.request
+  let mailboxRequests = 0
+  const received = []
+
+  http.request = (options, callback) => {
+    if (!options || typeof options !== 'object') {
+      return originalRequest(options, callback)
+    }
+
+    const pathname = options.path || ''
+    const isAgentSocket = options.socketPath === SOCKET_PATH
+
+    if (isAgentSocket && pathname === '/events') {
+      const req = new EventEmitter()
+      req.end = () => {
+        const res = new Readable({ read() { } })
+        res.statusCode = 200
+        res.headers = { 'content-type': 'text/event-stream' }
+        if (callback) callback(res)
+
+        // Intentionally split one SSE event over two chunks.
+        res.push('event: new_mail\n')
+        res.push('\n')
+        setTimeout(() => res.push(null), 20)
+      }
+      req.destroy = () => {
+        req.emit('close')
+      }
+      return req
+    }
+
+    if (isAgentSocket && pathname === '/mailbox/next') {
+      mailboxRequests += 1
+      const req = new EventEmitter()
+      req.end = () => {
+        const res = new Readable({ read() { } })
+        res.statusCode = 200
+        res.headers = {
+          'content-type': 'application/json',
+          'x-mailbox-empty': 'false',
+          'x-mailbox-size': '1',
+          'x-mail-id': '018f4d1f-2a55-7f0e-b4ea-5f7c3e6fa001',
+          'x-mail-name': 'test',
+          'x-mail-has-payload': 'true',
+        }
+        if (callback) callback(res)
+        res.push(JSON.stringify({ ok: true }))
+        res.push(null)
+      }
+      req.destroy = () => {
+        req.emit('close')
+      }
+      return req
+    }
+
+    return originalRequest(options, callback)
+  }
+
+  const app = new Fostrom({
+    fleet_id: FLEET_ID,
+    device_id: DEVICE_ID,
+    device_secret: DEVICE_SECRET,
+    stopAgentOnExit: true,
+    log: false,
+  })
+
+  app.onMail = async (mail) => {
+    received.push(mail)
+  }
+
+  try {
+    await app.start()
+    await new Promise((resolve) => setTimeout(resolve, 250))
+    assert.ok(mailboxRequests >= 1)
+    assert.ok(received.length >= 1)
     assert.equal(received[0].name, 'test')
   } finally {
     http.request = originalRequest
