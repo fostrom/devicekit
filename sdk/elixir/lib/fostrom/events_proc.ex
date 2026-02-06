@@ -23,48 +23,65 @@ defmodule Fostrom.EventsProc do
   end
 
   def init(_args) do
-    {:ok, %{events: open_stream()}}
+    {:ok, %{events: open_stream(), sse_buffer: ""}}
   end
 
   def handle_info({{Finch.HTTP1.Pool, _}, _} = msg, %{events: events} = state) do
     with {:ok, chunks} <- Req.parse_message(events, msg) do
-      events =
-        for chunk <- chunks do
-          process_chunk(chunk)
+      {events_to_process, sse_buffer} =
+        for chunk <- chunks, reduce: {[], state.sse_buffer} do
+          {acc_events, buffer} ->
+            {parsed_events, next_buffer} = process_chunk(chunk, buffer)
+            {acc_events ++ parsed_events, next_buffer}
         end
-        |> List.flatten()
-        |> Enum.reject(&is_nil/1)
 
-      for event <- events do
+      for event <- events_to_process do
         process_event(event)
       end
 
-      {:noreply, state}
+      {:noreply, %{state | sse_buffer: sse_buffer}}
     else
       _ ->
         # Attempt to re-open the event stream without stopping the agent.
         new_stream = open_stream()
-        {:noreply, %{state | events: new_stream}}
+        {:noreply, %{state | events: new_stream, sse_buffer: ""}}
     end
   end
 
-  defp process_chunk(:done), do: nil
+  defp process_chunk(:done, buffer), do: {[], buffer}
 
-  defp process_chunk({:trailers, _}), do: nil
+  defp process_chunk({:trailers, _}, buffer), do: {[], buffer}
 
-  defp process_chunk({:data, data}) do
+  defp process_chunk({:data, data}, buffer) do
+    {events, sse_buffer} = (buffer <> data) |> split_sse_events()
+    parsed_events = events |> Enum.map(&parse_sse_event/1) |> Enum.reject(&is_nil/1)
+    {parsed_events, sse_buffer}
+  end
+
+  defp process_chunk(_, buffer), do: {[], buffer}
+
+  defp split_sse_events(data) do
+    parts = String.split(data, "\n\n", trim: false)
+
+    if String.ends_with?(data, "\n\n") do
+      {Enum.reject(parts, &(&1 == "")), ""}
+    else
+      buffer = List.last(parts) || ""
+      complete_events = parts |> Enum.drop(-1) |> Enum.reject(&(&1 == ""))
+      {complete_events, buffer}
+    end
+  end
+
+  defp parse_sse_event(raw_event) do
     empty_str = fn s -> s == "" end
 
-    data
-    |> String.split("\n\n")
+    raw_event
+    |> String.trim()
+    |> String.split("\n")
     |> Enum.reject(empty_str)
-    |> Enum.map(
-      &(&1
-        |> String.trim()
-        |> String.split("\n")
-        |> Enum.reject(empty_str)
-        |> Enum.map(fn s ->
-          [k, v] = String.split(s, ":", parts: 2, trim: true)
+    |> Enum.map(fn s ->
+      case String.split(s, ":", parts: 2, trim: true) do
+        [k, v] ->
           k = k |> String.trim()
           v = v |> String.trim()
 
@@ -75,10 +92,17 @@ defmodule Fostrom.EventsProc do
             "data" -> {"data", v}
             _ -> nil
           end
-        end)
-        |> Enum.reject(fn x -> is_nil(x) end)
-        |> Enum.into(%{}))
-    )
+
+        _ ->
+          nil
+      end
+    end)
+    |> Enum.reject(fn x -> is_nil(x) end)
+    |> Enum.into(%{})
+    |> case do
+      m when map_size(m) == 0 -> nil
+      m -> m
+    end
   end
 
   defp process_event(%{"event" => "connected"}) do

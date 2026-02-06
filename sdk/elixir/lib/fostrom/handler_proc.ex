@@ -57,6 +57,7 @@ defmodule Fostrom.HandlerProc do
       :reject -> Fostrom.Mailbox.reject(mail)
       :requeue -> Fostrom.Mailbox.requeue(mail)
       :noop -> nil
+      _ -> Fostrom.Mailbox.reject(mail)
     end
   end
 end
