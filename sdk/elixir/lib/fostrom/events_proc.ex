@@ -39,6 +39,10 @@ defmodule Fostrom.EventsProc do
         process_event(event)
       end
 
+      if :done in chunks do
+        Process.send_after(self(), :reconnect, 500)
+      end
+
       {:noreply, %{state | sse_buffer: sse_buffer}}
     else
       _ ->
@@ -46,6 +50,11 @@ defmodule Fostrom.EventsProc do
         new_stream = open_stream()
         {:noreply, %{state | events: new_stream, sse_buffer: ""}}
     end
+  end
+
+  def handle_info(:reconnect, state) do
+    new_stream = open_stream()
+    {:noreply, %{state | events: new_stream, sse_buffer: ""}}
   end
 
   defp process_chunk(:done, buffer), do: {[], buffer}

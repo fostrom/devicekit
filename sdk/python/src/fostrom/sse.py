@@ -20,14 +20,19 @@ def _send_request(sock: socket.socket, headers: dict[str, str]) -> None:
     sock.sendall("".join(req).encode("latin-1"))
 
 
-def _read_until(sock: socket.socket, token: bytes) -> bytes:
+def _read_until(sock: socket.socket, token: bytes) -> tuple[bytes, bytes]:
     data = bytearray()
     while token not in data:
         chunk = sock.recv(1024)
         if not chunk:
             break
         data += chunk
-    return bytes(data)
+    raw = bytes(data)
+    idx = raw.find(token)
+    if idx == -1:
+        return raw, b""
+    split_at = idx + len(token)
+    return raw[:split_at], raw[split_at:]
 
 
 def _parse_events(
@@ -87,17 +92,17 @@ class SSEThread(threading.Thread):
                 sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
                 sock.connect("/tmp/fostrom/agent.sock")
                 _send_request(sock, self._headers)
-                # read headers
-                _ = _read_until(sock, b"\r\n\r\n")
+                # read headers, preserving any SSE data that arrived in the same read
+                _, leftover = _read_until(sock, b"\r\n\r\n")
+                if leftover:
+                    decoded = leftover.decode("utf-8", errors="ignore")
+                    buffer, event = _parse_events(buffer, decoded, self._on_event, event)
                 # stream body
                 while not self._stop_event.is_set():
                     chunk = sock.recv(2048)
                     if not chunk:
                         break
-                    try:
-                        decoded = chunk.decode("utf-8", errors="ignore")
-                    except Exception:
-                        decoded = chunk.decode("latin-1", errors="ignore")
+                    decoded = chunk.decode("utf-8", errors="ignore")
                     buffer, event = _parse_events(buffer, decoded, self._on_event, event)
             except Exception:
                 time.sleep(0.5)
