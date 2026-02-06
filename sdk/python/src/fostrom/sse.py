@@ -30,11 +30,16 @@ def _read_until(sock: socket.socket, token: bytes) -> bytes:
     return bytes(data)
 
 
-def _parse_events(buffer: str, chunk: str, handler: Callable[[dict[str, object]], None]) -> str:
+def _parse_events(
+    buffer: str,
+    chunk: str,
+    handler: Callable[[dict[str, object]], None],
+    current_event: dict[str, object] | None = None,
+) -> tuple[str, dict[str, object]]:
     buffer += chunk
     lines = buffer.split("\n")
     buffer = lines.pop() or ""
-    event: dict[str, object] = {}
+    event: dict[str, object] = current_event if current_event is not None else {}
     for raw in lines:
         line = raw.rstrip("\r")
         if line == "":
@@ -56,7 +61,9 @@ def _parse_events(buffer: str, chunk: str, handler: Callable[[dict[str, object]]
         elif line.startswith("id: "):
             with contextlib.suppress(Exception):
                 event["timestamp"] = int(line[4:])
-    return buffer
+    if current_event is None:
+        return buffer, {}
+    return buffer, event
 
 
 class SSEThread(threading.Thread):
@@ -74,6 +81,7 @@ class SSEThread(threading.Thread):
     def run(self) -> None:
         while not self._stop_event.is_set():
             buffer = ""
+            event: dict[str, object] = {}
             sock: socket.socket | None = None
             try:
                 sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -90,7 +98,7 @@ class SSEThread(threading.Thread):
                         decoded = chunk.decode("utf-8", errors="ignore")
                     except Exception:
                         decoded = chunk.decode("latin-1", errors="ignore")
-                    buffer = _parse_events(buffer, decoded, self._on_event)
+                    buffer, event = _parse_events(buffer, decoded, self._on_event, event)
             except Exception:
                 time.sleep(0.5)
             finally:
