@@ -1,6 +1,6 @@
 [project]
 name = "fostrom"
-version = "0.0.17"
+version = "0.0.18"
 description = "Fostrom Device SDK"
 readme = "README.md"
 authors = [{ name = "Fostrom", email = "support@fostrom.io" }]
