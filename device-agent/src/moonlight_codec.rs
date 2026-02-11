@@ -273,6 +273,7 @@ impl Creds {
         hasher.update(self.device_id.as_bytes());
         hasher.update(self.device_secret.as_bytes());
         hasher.update(self.prod.to_string().as_bytes());
+        hasher.update(env!("CARGO_PKG_VERSION").as_bytes());
         format!("{:x}", hasher.finalize())
     }
 
