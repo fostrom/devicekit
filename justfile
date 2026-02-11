@@ -56,6 +56,7 @@ default: build
 # BUILD + VERIFY + TEST
 [group("build")]
 build:
+    just verify-version-coherence
     just build-device-agent
     just copy-device-agent-to-sdk-js
     just copy-device-agent-to-sdk-python
@@ -342,19 +343,20 @@ setup-elixir:
 
 # VERSION BUMP ALL
 [group("version-bump")]
-version-bump-all:
-    just version-bump-device-agent
+version-bump-all LEVEL="patch":
+    just version-bump-device-agent "{{LEVEL}}"
     just version-bump-dl-agent-script
-    just version-bump-sdk-python
-    just version-bump-sdk-js
-    just version-bump-sdk-elixir
+    just version-bump-sdk-python "{{LEVEL}}"
+    just version-bump-sdk-js "{{LEVEL}}"
+    just version-bump-sdk-elixir "{{LEVEL}}"
+    just verify-version-coherence
 
 
 # VERSION BUMP FOR DEVICE AGENT
 [group("version-bump")]
 [working-directory("device-agent/")]
-version-bump-device-agent:
-    cargo bump patch
+version-bump-device-agent LEVEL="patch":
+    cargo bump "{{LEVEL}}"
     just build-device-agent
 
 
@@ -389,31 +391,70 @@ version-bump-dl-agent-script:
 # VERSION BUMP FOR PYTHON SDK
 [group("version-bump")]
 [working-directory("sdk/python/")]
-version-bump-sdk-python:
-    uv version --bump patch
+version-bump-sdk-python LEVEL="patch":
+    uv version --bump "{{LEVEL}}"
 
 
 # VERSION BUMP FOR JS SDK
 [group("version-bump")]
 [working-directory("sdk/js/")]
-version-bump-sdk-js:
-    npm version patch
+version-bump-sdk-js LEVEL="patch":
+    npm version "{{LEVEL}}"
 
 
 # VERSION BUMP FOR ELIXIR SDK
 [group("version-bump")]
 [working-directory("sdk/elixir/")]
-version-bump-sdk-elixir:
+version-bump-sdk-elixir level="patch":
     #!/bin/bash
     set -euo pipefail
-    perl -0777 -pe 's/(version:\s*")(\d+)\.(\d+)\.(\d+)(")/$1 . $2 . "." . $3 . "." . ($4+1) . $5/ge' -i mix.exs
+    LEVEL="{{level}}"
+    case "$LEVEL" in patch|minor|major) ;; *)
+      echo "Invalid level '$LEVEL'. Use patch|minor|major." >&2
+      exit 1
+      ;;
+    esac
+
     VSN=$(awk -F\" '/^[[:space:]]*version:/ {print $2; exit}' mix.exs)
+    IFS='.' read -r MAJOR MINOR PATCH <<< "$VSN"
+    case "$LEVEL" in
+      patch) PATCH=$((PATCH + 1)) ;;
+      minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
+      major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+    esac
+    VSN="$MAJOR.$MINOR.$PATCH"
+
+    VSN="$VSN" perl -0pi -e 's/(version:\s*")\d+\.\d+\.\d+(")/${1}$ENV{VSN}${2}/' mix.exs
     perl -0pi -e 's/{:fostrom, "~> \K\d+\.\d+\.\d+/'"$VSN"'/' README.md
     if ! grep -q "~> $VSN" README.md; then
         echo "Failed to update README.md with version $VSN" >&2
         exit 1
     fi
     echo "New version: $VSN"
+
+
+# VERIFY THAT THE DEVICE AGENT AND DOWNLOADER EXPECTED VERSION MATCH
+[private]
+[group("build")]
+verify-version-coherence:
+    #!/bin/bash
+    set -euo pipefail
+
+    AGENT_VSN="$(awk -F'\"' '/^[[:space:]]*version[[:space:]]*=/ { print $2; exit }' device-agent/Cargo.toml)"
+    DL_VSN="$(awk -F'\"' '/^VERSION="/ { print $2; exit }' sdk/dl-agent.sh)"
+    DL_VSN="${DL_VSN#v}"
+
+    if [[ -z "$AGENT_VSN" || -z "$DL_VSN" ]]; then
+      echo "Failed to read versions from device-agent/Cargo.toml and sdk/dl-agent.sh" >&2
+      exit 1
+    fi
+
+    if [[ "$AGENT_VSN" != "$DL_VSN" ]]; then
+      echo "Version mismatch:" >&2
+      echo "  device-agent/Cargo.toml: $AGENT_VSN" >&2
+      echo "  sdk/dl-agent.sh:         v$DL_VSN" >&2
+      exit 1
+    fi
 
 
 
@@ -478,6 +519,7 @@ publish-device-agent:
     # upload release to CDNs
     just upload-device-agent-to-cdn tigris
     just upload-device-agent-to-cdn bunny
+    just verify-device-agent-cdn
 
 
 [private]
@@ -560,6 +602,40 @@ upload-to-bunny-cdn vsn file:
         --header "accept: application/json"  \
         --upload-file ".release/{{file}}" \
         "https://uk.storage.bunnycdn.com/fostrom/fostrom-device-agent/latest/{{file}}" > /dev/null
+
+
+[private]
+[group("publish")]
+[working-directory("device-agent/")]
+verify-device-agent-cdn:
+    #!/bin/bash
+    set -euo pipefail
+
+    VSN=$(.release/{{BIN_OS_ARCH}} version | tr -d '[:space:]')
+    FILES=(
+      "{{BIN}}-linux-arm64"
+      "{{BIN}}-linux-armv6hf"
+      "{{BIN}}-linux-amd64"
+      "{{BIN}}-linux-riscv64"
+      "{{BIN}}-macos-arm64"
+      "{{BIN}}-macos-amd64"
+      "{{BIN}}.vsn"
+      "{{BIN}}.sha256"
+    )
+    BASES=(
+      "https://cdn.fostrom.dev/fostrom-device-agent/$VSN"
+      "https://b.cdn.fostrom.dev/fostrom-device-agent/$VSN"
+    )
+
+    for BASE in "${BASES[@]}"; do
+      for FILE in "${FILES[@]}"; do
+        URL="$BASE/$FILE"
+        echo "Verifying: $URL"
+        curl -fsI "$URL" >/dev/null || (echo "Missing CDN artifact: $URL" >&2 && exit 1)
+      done
+    done
+    echo "Verified CDN artifacts for Device Agent $VSN"
+
 
 # ---------------
 # --- CLEANUP ---
