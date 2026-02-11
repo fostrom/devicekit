@@ -1,4 +1,4 @@
-import { execSync } from "child_process"
+import { execFileSync } from "child_process"
 import { fileURLToPath } from "url"
 import path from "path"
 import http from "node:http"
@@ -109,18 +109,18 @@ export default class Fostrom {
       env["FOSTROM_RUNTIME_ENV"] = String(this.#runtimeEnv)
     }
 
-    const args = ["start"]
-
     try {
-      const output = execSync(`${agent_path()} ${args.join(" ")}`, { encoding: "utf8", env })
+      const output = execFileSync(agent_path(), ["start"], { encoding: "utf8", env })
       const out = output.trim()
       if (out.startsWith("started:")) return
       if (out.startsWith("already_started:")) return
       return
     } catch (error) {
       const out = (error.stdout || "").toString().trim()
-      if (out) {
-        const [atom, rest] = out.split(":", 2)
+      const err = (error.stderr || "").toString().trim()
+      const text = out || err
+      if (text) {
+        const [atom, rest] = text.split(":", 2)
         throw new FostromError(atom || "failed", (rest || "Failed to start Device Agent").trim())
       }
       throw new FostromError("failed", "Failed to start Device Agent")
@@ -167,7 +167,7 @@ export default class Fostrom {
 
   static stopAgent() {
     try {
-      execSync(`${agent_path()} stop`, { encoding: "utf8" })
+      execFileSync(agent_path(), ["stop"], { encoding: "utf8" })
     } catch (e) {
       console.error("[Fostrom] Failed to stop the Fostrom Device Agent")
     }
