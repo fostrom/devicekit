@@ -5,24 +5,17 @@ defmodule Mix.Tasks.Compile.DownloadAgent do
   use Mix.Task.Compiler
   @recursive true
 
-  def clean() do
-    File.rm_rf!(Path.join(Mix.Project.app_path(), "priv/.agent"))
+  def clean do
+    Mix.Project.app_path() |> Path.join("priv/.agent") |> File.rm_rf!()
   end
 
   def run(_args) do
-    agent_dir = Path.join(Mix.Project.app_path(), "priv/.agent")
-
-    if File.exists?(agent_dir <> "/fostrom-device-agent") do
-      {:ok, []}
-    else
-      Mix.shell().info("Downloading agent...")
-      File.mkdir_p!(agent_dir)
-      download_agent(agent_dir)
-      {:ok, []}
-    end
-  end
-
-  defp download_agent(target_dir) do
-    System.cmd("sh", ["dl-agent.sh", target_dir], cd: File.cwd!())
+    script_path = Mix.Project.project_file() |> Path.dirname() |> Path.join("dl-agent.sh")
+    agent_dir = Mix.Project.app_path() |> Path.join("priv/.agent")
+    File.mkdir_p!(agent_dir)
+    args = [script_path, agent_dir]
+    {_, status} = System.cmd("sh", args, stderr_to_stdout: true, into: IO.stream(:stdio, :line))
+    if status != 0, do: Mix.raise("Failed to download Device Agent")
+    {:ok, []}
   end
 end

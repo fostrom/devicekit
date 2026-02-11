@@ -11,9 +11,8 @@ defmodule Mix.Tasks.Fostrom.Setup do
   use Mix.Task
 
   def run(_args) do
-    agent_dir = Path.join(Mix.Project.app_path(), "priv/.agent")
-    File.rm_rf!(agent_dir)
-    File.mkdir_p!(agent_dir)
-    System.cmd("sh", ["dl-agent.sh", agent_dir], cd: File.cwd!())
+    Mix.Project.app_path() |> Path.join("priv/.agent") |> File.rm_rf!()
+    Mix.Task.reenable("compile.download_agent")
+    Mix.Task.run("compile.download_agent")
   end
 end
