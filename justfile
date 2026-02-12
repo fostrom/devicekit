@@ -66,6 +66,18 @@ build:
     just build-sdk-js
 
 
+# BUILD + VERIFY + TEST FOR FREEBSD
+[group("build")]
+build-freebsd:
+    just verify-version-coherence
+    just build-device-agent
+    just copy-device-agent-to-sdk-js
+    just copy-device-agent-to-sdk-python
+    just copy-device-agent-to-sdk-elixir
+    just build-sdk-js-freebsd
+    just build-sdk-python-freebsd
+
+
 # BUILD + VERIFY + TEST + CROSS COMPILE
 [group("build")]
 release:
@@ -217,6 +229,17 @@ build-sdk-python:
     uvx --with 'fostrom @ .' pytest {{QUIET}}
 
 
+# BUILD PYTHON SDK ON FREEBSD
+[private]
+[group("build")]
+[working-directory("sdk/python/")]
+build-sdk-python-freebsd:
+    rm -rf dist/
+    uv build {{QUIET}}
+    just verify-sdk-python-build
+    uvx --with 'fostrom @ .' pytest {{QUIET}}
+
+
 # BUILD JS SDK
 [private]
 [group("build")]
@@ -226,6 +249,16 @@ build-sdk-js:
     echo "{{BLUE}}Running JS Tests...{{NORMAL}}"
     if [ "{{QUIET}}"  = -q ]; then node --test --test-reporter=dot; else node --test; fi
     if [ "{{QUIET}}"  = -q ]; then bun test >/dev/null 2>&1; else bun test; fi
+
+
+# BUILD JS SDK ON FREEBSD
+[private]
+[group("build")]
+[working-directory("sdk/js/")]
+build-sdk-js-freebsd:
+    echo
+    echo "{{BLUE}}Running JS Tests (Node-only)...{{NORMAL}}"
+    if [ "{{QUIET}}"  = -q ]; then node --test --test-reporter=dot; else node --test; fi
 
 
 # VERIFY PYTHON SDK PACKAGE CONTENTS

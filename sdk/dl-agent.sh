@@ -36,8 +36,10 @@ download_file() {
           # BusyBox-compatible fallback (fewer assumptions)
           wget -q -O "$OUTPUT" "$URL" 2>/dev/null
       fi
+    elif command -v fetch >/dev/null 2>&1; then
+        fetch -q -o "$OUTPUT" "$URL" 2>/dev/null
     else
-        die "No download tool found (curl or wget required)"
+        die "No download tool found (curl, wget, or fetch required)"
     fi
 }
 
@@ -80,6 +82,16 @@ verify_checksum() {
 
     if command -v sha256sum >/dev/null 2>&1; then
         sha256sum -c "$HASH_FILE" >/dev/null 2>&1
+    elif command -v sha256 >/dev/null 2>&1; then
+        EXPECTED_HASH="$(awk '{print $1; exit}' "$HASH_FILE")"
+        [ -z "$EXPECTED_HASH" ] && return 1
+
+        ACTUAL_HASH="$(sha256 -q "$TARGET_FILE" 2>/dev/null || true)"
+        if [ -z "$ACTUAL_HASH" ]; then
+            ACTUAL_HASH="$(sha256 "$TARGET_FILE" 2>/dev/null | awk '{print $NF; exit}')"
+        fi
+
+        [ -n "$ACTUAL_HASH" ] && [ "$ACTUAL_HASH" = "$EXPECTED_HASH" ]
     elif command -v shasum >/dev/null 2>&1; then
         shasum -a 256 -c "$HASH_FILE" >/dev/null 2>&1
     else
@@ -165,6 +177,13 @@ main() {
             case "$ARCH" in
                 x86_64|amd64)  ARCH="amd64" ;;
                 aarch64|arm64) ARCH="arm64" ;;
+                *)             die "Unsupported architecture: $ARCH" ;;
+            esac
+            ;;
+        FreeBSD*)
+            OS="freebsd"
+            case "$ARCH" in
+                x86_64|amd64)  ARCH="amd64" ;;
                 *)             die "Unsupported architecture: $ARCH" ;;
             esac
             ;;

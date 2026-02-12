@@ -42,21 +42,14 @@ jobs:
           usesh: true
           copyback: false
           prepare: |
+            pkg update -f
             pkg install -y bash ca_root_nss cmake curl git jq just unzip wget \
               node npm-node22 python310 rust uv
 
             ln -s /usr/local/bin/bash /bin/bash
 
           run: |
-            just build-device-agent
-            just copy-device-agent-to-sdk-js
-            just copy-device-agent-to-sdk-python
-            cd sdk/js/ && node --test
-            cd ../python/
-            rm -rf dist/
-            uv build
-            just verify-sdk-python-build
-            uvx --with 'fostrom @ .' pytest
+            just build-freebsd
 
   build-ubuntu-amd64:
     runs-on: ubuntu-latest
