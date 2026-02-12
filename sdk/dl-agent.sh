@@ -135,6 +135,14 @@ install_binary() {
     ln -sf "$FILENAME" "$INSTALL_DIR/fostrom-device-agent"
 }
 
+read_installed_version() {
+    BIN="$1"
+    [ ! -x "$BIN" ] && return 1
+    RAW_VERSION="$("$BIN" version 2>/dev/null || true)"
+    [ -z "$RAW_VERSION" ] && return 1
+    printf "%s\n" "$RAW_VERSION" | tr -d '[:space:]'
+}
+
 main() {
     # Detect OS and architecture
     OS="$(uname -s)"
@@ -165,9 +173,16 @@ main() {
 
     FILENAME="fostrom-device-agent-${OS}-${ARCH}"
 
-    # Check if binary already exists
+    # Check if binary already exists and the version matches.
     if [ -f "$LOCATION/$FILENAME" ]; then
-        exit 0
+        INSTALLED_VERSION="$(read_installed_version "$LOCATION/$FILENAME" || true)"
+        if [ "$INSTALLED_VERSION" = "$VERSION" ]; then
+            # Ensure symlink exists even when reusing.
+            ln -sf "$FILENAME" "$LOCATION/fostrom-device-agent"
+            exit 0
+        fi
+
+        printf "Updating Fostrom Device Agent to %s...\n" "$VERSION"
     fi
 
     printf "Downloading Fostrom Device Agent...\n"
@@ -178,6 +193,10 @@ main() {
     if [ "$OS" = "macos" ]; then
         xattr -r -d com.apple.quarantine "$LOCATION/$FILENAME" 2>/dev/null || true
     fi
+
+    INSTALLED_VERSION="$(read_installed_version "$LOCATION/$FILENAME" || true)"
+    [ "$INSTALLED_VERSION" = "$VERSION" ] || die \
+      "Fatal: Installed Version Mismatch (expected $VERSION, got ${INSTALLED_VERSION:-unknown})"
 
     printf "Fostrom Device Agent downloaded successfully\n"
 }
