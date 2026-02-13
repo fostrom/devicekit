@@ -11,7 +11,7 @@ AMD_LINUX := "x86_64-unknown-linux-musl"
 ARM_MAC := "aarch64-apple-darwin"
 AMD_MAC := "x86_64-apple-darwin"
 # ARM_FREEBSD  := "aarch64-unknown-freebsd"
-# AMD_FREEBSD  := "x86_64-unknown-freebsd"
+AMD_FREEBSD  := "x86_64-unknown-freebsd"
 
 PYTHON_VERSION := "3.10"
 export UV_PYTHON := PYTHON_VERSION
@@ -66,9 +66,9 @@ build:
     just build-sdk-js
 
 
-# BUILD + VERIFY + TEST FOR FREEBSD
+# BUILD + VERIFY + TEST ON FREEBSD
 [group("build")]
-build-freebsd:
+build-on-freebsd:
     just verify-version-coherence
     just build-device-agent
     just copy-device-agent-to-sdk-js
@@ -120,6 +120,8 @@ cross-compile-device-agent:
     cargo zigbuild --release --target {{ARM_MAC}}
     echo -n "compiling {{AMD_MAC}}             "
     cargo zigbuild --release --target {{AMD_MAC}}
+    echo -n "compiling {{AMD_FREEBSD}}         "
+    cargo zigbuild --release --target {{AMD_FREEBSD}}
 
     install -m 0755 "target/{{ARM_LINUX}}/release/{{BIN}}" ".release/{{BIN}}-linux-arm64"
     install -m 0755 "target/{{ARMV6HF_LINUX}}/release/{{BIN}}" ".release/{{BIN}}-linux-armv6hf"
@@ -127,6 +129,7 @@ cross-compile-device-agent:
     install -m 0755 "target/{{AMD_LINUX}}/release/{{BIN}}" ".release/{{BIN}}-linux-amd64"
     install -m 0755 "target/{{ARM_MAC}}/release/{{BIN}}" ".release/{{BIN}}-macos-arm64"
     install -m 0755 "target/{{AMD_MAC}}/release/{{BIN}}" ".release/{{BIN}}-macos-amd64"
+    install -m 0755 "target/{{AMD_FREEBSD}}/release/{{BIN}}" ".release/{{BIN}}-freebsd-amd64"
 
     just codesign-mac-binaries
 
@@ -348,7 +351,8 @@ setup-rust:
     cargo install --locked cargo-zigbuild {{QUIET}}
     rustup target add {{ARM_LINUX}} {{ARMV6HF_LINUX}} \
       {{AMD_LINUX}} {{RISCV_LINUX}} \
-      {{ARM_MAC}} {{AMD_MAC}}
+      {{ARM_MAC}} {{AMD_MAC}} \
+      {{AMD_FREEBSD}}
 
 
 # SETUP PYTHON ENVIRONMENT

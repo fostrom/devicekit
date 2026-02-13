@@ -49,7 +49,7 @@ jobs:
             ln -s /usr/local/bin/bash /bin/bash
 
           run: |
-            just build-freebsd
+            just build-on-freebsd
 
   build-ubuntu-amd64:
     runs-on: ubuntu-latest
