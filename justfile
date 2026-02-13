@@ -74,6 +74,7 @@ build-on-freebsd:
     just copy-device-agent-to-sdk-js
     just copy-device-agent-to-sdk-python
     just copy-device-agent-to-sdk-elixir
+    # just build-sdk-elixir
     just build-sdk-js-freebsd
     just build-sdk-python-freebsd
 
@@ -573,6 +574,7 @@ upload-device-agent-to-cdn cdn:
     just "upload-to-{{cdn}}-cdn" $VSN "{{BIN}}-linux-riscv64"
     just "upload-to-{{cdn}}-cdn" $VSN "{{BIN}}-macos-arm64"
     just "upload-to-{{cdn}}-cdn" $VSN "{{BIN}}-macos-amd64"
+    just "upload-to-{{cdn}}-cdn" $VSN "{{BIN}}-freebsd-amd64"
     just "upload-to-{{cdn}}-cdn" $VSN "{{BIN}}.vsn"
     just "upload-to-{{cdn}}-cdn" $VSN "{{BIN}}.sha256"
     echo "Release $VSN uploaded to {{cdn}} CDN successfully!"
@@ -656,6 +658,7 @@ verify-device-agent-cdn:
       "{{BIN}}-linux-riscv64"
       "{{BIN}}-macos-arm64"
       "{{BIN}}-macos-amd64"
+      "{{BIN}}-freebsd-amd64"
       "{{BIN}}.vsn"
       "{{BIN}}.sha256"
     )
