@@ -274,7 +274,7 @@ impl Creds {
         hasher.update(self.device_secret.as_bytes());
         hasher.update(self.prod.to_string().as_bytes());
         hasher.update(env!("CARGO_PKG_VERSION").as_bytes());
-        format!("{:x}", hasher.finalize())
+        hex::encode(hasher.finalize())
     }
 
     fn validate(&self) -> Result<(), CredErr> {

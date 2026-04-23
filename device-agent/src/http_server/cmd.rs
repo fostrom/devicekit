@@ -79,20 +79,20 @@ pub fn mailbox_next(client: &MoonlightClient, header_only: bool) -> Resp {
         }
 
         Ok(R::Mail(Some(mail))) => {
-            let mut r = Resp::ok("");
+            let has_payload = mail.payload.is_some();
+            let mut resp = Resp::ok("");
 
-            r.add_header("X-Mailbox-Size", mail.mailbox_size)
+            resp.add_header("X-Mailbox-Size", mail.mailbox_size)
                 .add_header("X-Mailbox-Empty", false)
                 .add_header("X-Mail-ID", ClientLogic::uuidv7_str(mail.pulse_id))
                 .add_header("X-Mail-Name", mail.name)
-                .add_header("X-Mail-Has-Payload", mail.payload.is_some());
+                .add_header("X-Mail-Has-Payload", has_payload);
 
-            if header_only || mail.payload.is_none() {
-                r
-            } else {
-                r.set_body(mail.payload.unwrap());
-                r
+            if !header_only && let Some(payload) = mail.payload {
+                resp.set_body(payload);
             }
+
+            resp
         }
 
         Ok(_) => FR::internal_server_error("Unexpected Response"),
