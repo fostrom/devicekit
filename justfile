@@ -106,6 +106,9 @@ build-device-agent:
 [group("build")]
 [working-directory("device-agent/")]
 cross-compile-device-agent:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
     rm -rf .release
     mkdir -p .release
 
@@ -117,10 +120,6 @@ cross-compile-device-agent:
     cargo zigbuild --release --target {{AMD_LINUX}}
     echo -n "compiling {{RISCV_LINUX}}    "
     cargo zigbuild --release --target {{RISCV_LINUX}}
-    echo -n "compiling {{ARM_MAC}}            "
-    cargo zigbuild --release --target {{ARM_MAC}}
-    echo -n "compiling {{AMD_MAC}}             "
-    cargo zigbuild --release --target {{AMD_MAC}}
     echo -n "compiling {{AMD_FREEBSD}}         "
     cargo zigbuild --release --target {{AMD_FREEBSD}}
 
@@ -128,15 +127,24 @@ cross-compile-device-agent:
     install -m 0755 "target/{{ARMV6HF_LINUX}}/release/{{BIN}}" ".release/{{BIN}}-linux-armv6hf"
     install -m 0755 "target/{{RISCV_LINUX}}/release/{{BIN}}" ".release/{{BIN}}-linux-riscv64"
     install -m 0755 "target/{{AMD_LINUX}}/release/{{BIN}}" ".release/{{BIN}}-linux-amd64"
-    install -m 0755 "target/{{ARM_MAC}}/release/{{BIN}}" ".release/{{BIN}}-macos-arm64"
-    install -m 0755 "target/{{AMD_MAC}}/release/{{BIN}}" ".release/{{BIN}}-macos-amd64"
     install -m 0755 "target/{{AMD_FREEBSD}}/release/{{BIN}}" ".release/{{BIN}}-freebsd-amd64"
 
-    just codesign-mac-binaries
+    if command -v xcrun >/dev/null 2>&1; then
+      echo -n "compiling {{ARM_MAC}}            "
+      cargo zigbuild --release --target {{ARM_MAC}}
+      echo -n "compiling {{AMD_MAC}}             "
+      cargo zigbuild --release --target {{AMD_MAC}}
+      install -m 0755 "target/{{ARM_MAC}}/release/{{BIN}}" ".release/{{BIN}}-macos-arm64"
+      install -m 0755 "target/{{AMD_MAC}}/release/{{BIN}}" ".release/{{BIN}}-macos-amd64"
+      just codesign-mac-binaries
+    else
+      echo "xcrun not available; Mac builds will not be built."
+    fi
 
     ".release/{{BIN_OS_ARCH}}" version > ".release/{{BIN}}.vsn"
-    cd .release && sha256sum {{BIN}}* > "{{BIN}}.sha256"
-    cd .release && sha256sum -c --quiet "{{BIN}}.sha256"
+    cd .release
+    sha256sum {{BIN}}* > "{{BIN}}.sha256"
+    sha256sum -c --quiet "{{BIN}}.sha256"
 
 
 # CODESIGN MACOS BINARIES
