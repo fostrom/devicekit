@@ -16,7 +16,11 @@ def agent_path() -> Path:
 
 
 def start_agent(
-    fleet_id: str, device_id: str, device_secret: str, runtime_env: str | None = None
+    fleet_id: str,
+    device_id: str,
+    device_secret: str,
+    runtime_env: str | None = None,
+    collect_telemetry: bool | int = True,
 ) -> None:
     env = {
         **os.environ,
@@ -26,6 +30,10 @@ def start_agent(
     }
     if runtime_env is not None and str(runtime_env).strip() != "":
         env["FOSTROM_RUNTIME_ENV"] = str(runtime_env)
+    if collect_telemetry is False:
+        env["FOSTROM_COLLECT_TELEMETRY"] = "false"
+    elif isinstance(collect_telemetry, int) and collect_telemetry >= 15:
+        env["FOSTROM_COLLECT_TELEMETRY"] = str(collect_telemetry)
 
     try:
         result = subprocess.run(

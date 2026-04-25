@@ -43,6 +43,11 @@ classifiers = [
 "Fostrom" = "https://fostrom.io"
 "SDK Docs" = "https://fostrom.io/docs/sdk/py"
 
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

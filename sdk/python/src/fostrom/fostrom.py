@@ -35,6 +35,7 @@ class Fostrom:
             str(env_from_cfg) if env_from_cfg is not None else os.environ.get("PYTHON_ENV")
         )
         self._stop_agent_on_exit: bool = bool(config.get("stop_agent_on_exit", False))
+        self._collect_telemetry: bool | int = config.get("collect_telemetry", True)
         self._logger = logging.getLogger("fostrom")
 
         # Event handlers (can be reassigned by user)
@@ -49,7 +50,13 @@ class Fostrom:
     # Public API
     # ---------------
     def start(self) -> None:
-        start_agent(self._fleet_id, self._device_id, self._device_secret, self._runtime_env)
+        start_agent(
+            self._fleet_id,
+            self._device_id,
+            self._device_secret,
+            self._runtime_env,
+            self._collect_telemetry,
+        )
         self._start_sse()
         return None
 
