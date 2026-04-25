@@ -27,10 +27,6 @@ pub fn fetch_disks(disks: &Disks) -> Vec<Disk> {
     cleaned
 }
 
-pub fn diff_disks(old: &Vec<Disk>, new: &mut Vec<Disk>) -> Vec<Disk> {
-    [].to_vec()
-}
-
 fn make_disk(disk: &sysinfo::Disk) -> Disk {
     let usage = disk.usage();
 

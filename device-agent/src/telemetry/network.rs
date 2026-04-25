@@ -36,10 +36,6 @@ pub fn fetch_networks(networks: &Networks) -> Vec<Network> {
     interfaces
 }
 
-pub fn diff_networks(old: &Vec<Network>, new: &mut Vec<Network>) -> Vec<Network> {
-    [].to_vec()
-}
-
 fn usable_ip_networks(data: &NetworkData) -> Vec<String> {
     let mut ip_networks = data
         .ip_networks()

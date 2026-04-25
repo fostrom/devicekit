@@ -1,6 +1,6 @@
 use super::{
-    disk::{Disk, diff_disks, fetch_disks},
-    network::{Network, diff_networks, fetch_networks},
+    disk::{Disk, fetch_disks},
+    network::{Network, fetch_networks},
     source::TelemetrySource,
     temperature::fetch_temperature,
 };
@@ -41,14 +41,6 @@ pub fn collect_metrics(source: &mut TelemetrySource) -> Metrics {
         temperature_c: fetch_temperature(&source.components),
         disks: fetch_disks(&source.disks),
         networks: fetch_networks(&source.networks),
-    }
-}
-
-pub fn diff_metrics(old: &Metrics, new: &mut Metrics) -> Metrics {
-    Metrics {
-        disks: diff_disks(&old.disks, &mut new.disks),
-        networks: diff_networks(&old.networks, &mut new.networks),
-        ..*new
     }
 }
 

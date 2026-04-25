@@ -5,20 +5,18 @@ use std::{
 
 use super::{
     manifest::{Manifest, collect_manifest},
-    metrics::{Metrics, collect_metrics, diff_metrics},
+    metrics::{Metrics, collect_metrics},
     source::TelemetrySource,
 };
 
 pub struct TelemetryProcess {
     source: TelemetrySource,
-    last_metrics: Option<Metrics>,
 }
 
 impl TelemetryProcess {
     pub fn new() -> Self {
         TelemetryProcess {
             source: TelemetrySource::new(),
-            last_metrics: None,
         }
     }
 
@@ -35,26 +33,17 @@ impl TelemetryProcess {
     }
 
     fn emit_metrics(&mut self) {
-        let mut new_metrics = self.metrics();
-
-        let metrics = if let Some(last_metrics) = self.last_metrics.clone() {
-            diff_metrics(&last_metrics, &mut new_metrics)
-        } else {
-            new_metrics
-        };
-
-        self.last_metrics = Some(metrics.clone());
-
-        // emit metrics here
-        _ = metrics;
+        _ = self.metrics();
     }
 
-    fn thread_loop(&mut self) {
+    fn start_thread(refresh_interval: Duration) {}
+
+    fn thread_loop(&mut self, refresh_interval: Duration) {
         self.emit_manifest();
 
         loop {
             self.emit_metrics();
-            sleep(Duration::from_secs(60));
+            sleep(refresh_interval);
         }
     }
 }
