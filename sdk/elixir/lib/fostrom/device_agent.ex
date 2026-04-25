@@ -32,7 +32,8 @@ defmodule Fostrom.DeviceAgent do
           device_id: config[:device_id],
           device_secret: config[:device_secret],
           env: config[:env],
-          handler: config[:handler] || Fostrom.DefaultHandler
+          handler: config[:handler] || Fostrom.DefaultHandler,
+          collect_telemetry: Keyword.get(config, :collect_telemetry, true)
         }
 
       :error ->
@@ -48,7 +49,7 @@ defmodule Fostrom.DeviceAgent do
         {"FOSTROM_DEVICE_ID", config.device_id},
         {"FOSTROM_DEVICE_SECRET", config.device_secret},
         {"FOSTROM_RUNTIME_ENV", to_string(config.env)}
-      ]
+      ] ++ telemetry_env(config.collect_telemetry)
 
     {output, status} = System.cmd(agent_path(), ["start"], env: env)
     output = String.trim(output)
@@ -77,4 +78,12 @@ defmodule Fostrom.DeviceAgent do
   def stop do
     System.cmd(agent_path(), ["stop"])
   end
+
+  @doc false
+  def telemetry_env(false), do: [{"FOSTROM_COLLECT_TELEMETRY", "false"}]
+
+  def telemetry_env(secs) when is_integer(secs) and secs >= 15,
+    do: [{"FOSTROM_COLLECT_TELEMETRY", to_string(secs)}]
+
+  def telemetry_env(_), do: []
 end
