@@ -36,14 +36,17 @@ impl TelemetryProcess {
 
     fn emit_metrics(&mut self) {
         let mut new_metrics = self.metrics();
-        if let Some(last_metrics) = self.last_metrics.clone() {
-            let _metrics_diff = diff_metrics(&last_metrics, &mut new_metrics);
-            // emit metrics_diff here
-        } else {
-            // emit new_metrics here
-        }
 
-        self.last_metrics = Some(new_metrics);
+        let metrics = if let Some(last_metrics) = self.last_metrics.clone() {
+            diff_metrics(&last_metrics, &mut new_metrics)
+        } else {
+            new_metrics
+        };
+
+        self.last_metrics = Some(metrics.clone());
+
+        // emit metrics here
+        _ = metrics;
     }
 
     fn thread_loop(&mut self) {
