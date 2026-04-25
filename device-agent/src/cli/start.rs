@@ -8,6 +8,7 @@ use crate::{
     http_server::{self, SocketContext},
     moonlight_codec::{Creds, MoonlightClient},
     notifycast::NotifyCast,
+    telemetry,
 };
 use anyhow::Result;
 use std::{
@@ -165,6 +166,8 @@ fn start_proc(config: AgentConfig) -> Result<()> {
         }));
     }
 
+    let telemetry_handle = telemetry::start(client.clone(), shutdown_flag.clone());
+
     client.start(notify_chan_tx)?;
 
     // Ensure shutdown flag is set so accept loops exit promptly
@@ -175,6 +178,9 @@ fn start_proc(config: AgentConfig) -> Result<()> {
         let _ = h.join();
     }
     if let Some(h) = tcp_handle {
+        let _ = h.join();
+    }
+    if let Some(h) = telemetry_handle {
         let _ = h.join();
     }
     let _ = notify_handle.join();
