@@ -47,6 +47,7 @@ export default class Fostrom {
   #installedExitHandler = false
   #stopAgentOnExit = false
   #runtimeEnv = null
+  #collectTelemetry = true
 
   static #SOCK = "/tmp/fostrom/agent.sock"
 
@@ -86,6 +87,7 @@ export default class Fostrom {
     if (config.log == false) this.#log = false
     this.#stopAgentOnExit = Boolean(config.stopAgentOnExit || false)
     this.#runtimeEnv = config.env || config.runtimeEnv || process.env.NODE_ENV || null
+    this.#collectTelemetry = config.collect_telemetry ?? true
   }
 
   #installExitHandler() {
@@ -107,6 +109,12 @@ export default class Fostrom {
     }
     if (this.#runtimeEnv && String(this.#runtimeEnv).trim() !== "") {
       env["FOSTROM_RUNTIME_ENV"] = String(this.#runtimeEnv)
+    }
+
+    if (this.#collectTelemetry === false) {
+      env["FOSTROM_COLLECT_TELEMETRY"] = "false"
+    } else if (typeof this.#collectTelemetry === "number" && this.#collectTelemetry >= 15) {
+      env["FOSTROM_COLLECT_TELEMETRY"] = String(this.#collectTelemetry)
     }
 
     try {

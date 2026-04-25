@@ -33,3 +33,15 @@ test('device agent binary exists', () => {
   const stats = fs.statSync(AGENT_PATH)
   assert.ok(stats.isFile() || stats.isSymbolicLink(), 'Device agent path should be a file or symlink')
 })
+
+test('constructor accepts collect_telemetry across all valid forms', () => {
+  const base = { fleet_id: 'F', device_id: 'D', device_secret: 'S' }
+  assert.doesNotThrow(() => new Fostrom({ ...base }))
+  assert.doesNotThrow(() => new Fostrom({ ...base, collect_telemetry: true }))
+  assert.doesNotThrow(() => new Fostrom({ ...base, collect_telemetry: false }))
+  assert.doesNotThrow(() => new Fostrom({ ...base, collect_telemetry: 90 }))
+  // Numbers < 15 are accepted; #start_agent will silently omit the env var,
+  // letting the agent fall back to its default interval.
+  assert.doesNotThrow(() => new Fostrom({ ...base, collect_telemetry: 10 }))
+  assert.doesNotThrow(() => new Fostrom({ ...base, collect_telemetry: 0 }))
+})
