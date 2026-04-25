@@ -2,7 +2,7 @@
 // --- CLI PARSER ---
 // ------------------
 
-use super::{AgentConfig, ParsedAction};
+use super::{AgentConfig, DebugAction, ParsedAction};
 use crate::moonlight_codec::{ConnectMode, Creds};
 use anyhow::{Error, Result, anyhow};
 use std::env::{args, var};
@@ -21,11 +21,15 @@ Visit the Fostrom Docs [https://fostrom.io/docs/] for more information.
 USAGE:
     start               Start in daemon mode
     run                 Start in blocking mode
-    test-conn           Test connectivity to Fostrom
     status              Get the agent's status
     stop                Stop the device agent
     version             Print version
-    help                Print this help text"#
+    help                Print this help text
+
+    debug connection    Test connectivity to Fostrom
+    debug manifest      Host manifest collected by the Device Agent
+    debug telemetry     Telemetry collected by the Device Agent
+    "#
 );
 
 pub fn parse() -> Option<ParsedAction> {
@@ -57,8 +61,13 @@ pub fn parse() -> Option<ParsedAction> {
         return Some(ParsedAction::Status);
     }
 
-    if !args.is_empty() && (args[0] == "test-conn" || args[0] == "test-connection") {
-        return Some(ParsedAction::TestConn);
+    if args.len() == 2 && args[0] == "debug" {
+        return match args[1].as_str() {
+            "conn" | "connection" => Some(ParsedAction::Debug(DebugAction::Connection)),
+            "manifest" => Some(ParsedAction::Debug(DebugAction::Manifest)),
+            "telemetry" => Some(ParsedAction::Debug(DebugAction::Telemetry)),
+            _ => unknown_command(args),
+        };
     }
 
     if !args.is_empty() && (args[0] == "run" || args[0] == "start" || args[0] == "daemon") {
@@ -79,14 +88,18 @@ pub fn parse() -> Option<ParsedAction> {
         }
     }
 
-    eprintln!("Unknown Command: {}", args.join(" "));
-    eprintln!();
-    eprintln!("{HELP_TEXT}");
-    None
+    unknown_command(args)
 }
 
 fn help() -> Option<ParsedAction> {
     println!("{HELP_TEXT}");
+    None
+}
+
+fn unknown_command(args: Vec<String>) -> Option<ParsedAction> {
+    eprintln!("Unknown Command: {}", args.join(" "));
+    eprintln!();
+    eprintln!("{HELP_TEXT}");
     None
 }
 

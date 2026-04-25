@@ -9,7 +9,10 @@ mod status;
 mod stop;
 mod test_conn;
 
-use crate::moonlight_codec::{ConnectMode, Creds};
+use crate::{
+    moonlight_codec::{ConnectMode, Creds},
+    telemetry,
+};
 use start::{start_agent, start_daemon_child};
 use status::agent_status;
 use std::process::exit;
@@ -37,7 +40,14 @@ pub enum ParsedAction {
     Daemon(AgentConfig),
     Stop,
     Status,
-    TestConn,
+    Debug(DebugAction),
+}
+
+#[derive(Debug, Clone)]
+pub enum DebugAction {
+    Connection,
+    Manifest,
+    Telemetry,
 }
 
 pub fn exec() {
@@ -47,7 +57,11 @@ pub fn exec() {
             ParsedAction::Daemon(config) => start_daemon_child(config),
             ParsedAction::Stop => stop_agent(),
             ParsedAction::Status => agent_status(),
-            ParsedAction::TestConn => exit(test_conn::run()),
+            ParsedAction::Debug(action) => match action {
+                DebugAction::Connection => exit(test_conn::run()),
+                DebugAction::Manifest => telemetry::print_manifest(),
+                DebugAction::Telemetry => telemetry::print_metrics(),
+            },
         }
     }
 }
