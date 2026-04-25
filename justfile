@@ -120,14 +120,19 @@ cross-compile-device-agent:
     cargo zigbuild --release --target {{AMD_LINUX}}
     echo -n "compiling {{RISCV_LINUX}}    "
     cargo zigbuild --release --target {{RISCV_LINUX}}
-    echo -n "compiling {{AMD_FREEBSD}}         "
-    cargo zigbuild --release --target {{AMD_FREEBSD}}
 
     install -m 0755 "target/{{ARM_LINUX}}/release/{{BIN}}" ".release/{{BIN}}-linux-arm64"
     install -m 0755 "target/{{ARMV6HF_LINUX}}/release/{{BIN}}" ".release/{{BIN}}-linux-armv6hf"
     install -m 0755 "target/{{RISCV_LINUX}}/release/{{BIN}}" ".release/{{BIN}}-linux-riscv64"
     install -m 0755 "target/{{AMD_LINUX}}/release/{{BIN}}" ".release/{{BIN}}-linux-amd64"
-    install -m 0755 "target/{{AMD_FREEBSD}}/release/{{BIN}}" ".release/{{BIN}}-freebsd-amd64"
+
+    if command -v freebsd-version >/dev/null 2>&1; then
+      echo -n "compiling {{AMD_FREEBSD}}         "
+      cargo zigbuild --release --target {{AMD_FREEBSD}}
+      install -m 0755 "target/{{AMD_FREEBSD}}/release/{{BIN}}" ".release/{{BIN}}-freebsd-amd64"
+    else
+      echo "freebsd-version not available; FreeBSD builds will not be built."
+    fi
 
     if command -v xcrun >/dev/null 2>&1; then
       echo -n "compiling {{ARM_MAC}}            "
