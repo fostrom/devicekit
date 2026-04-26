@@ -48,7 +48,7 @@ defmodule Fostrom.DeviceAgent do
         {"FOSTROM_FLEET_ID", config.fleet_id},
         {"FOSTROM_DEVICE_ID", config.device_id},
         {"FOSTROM_DEVICE_SECRET", config.device_secret},
-        {"FOSTROM_RUNTIME_ENV", to_string(config.env)}
+        {"FOSTROM_SDK_MANIFEST", build_sdk_manifest(config)}
       ] ++ telemetry_env(config.collect_telemetry)
 
     {output, status} = System.cmd(agent_path(), ["start"], env: env)
@@ -86,4 +86,48 @@ defmodule Fostrom.DeviceAgent do
     do: [{"FOSTROM_COLLECT_TELEMETRY", to_string(secs)}]
 
   def telemetry_env(_), do: []
+
+  @doc false
+  def build_sdk_manifest(config) do
+    {app_name, app_version} = detect_host_app()
+
+    sdk_manifest =
+      %{
+        sdk_version: sdk_version(),
+        elixir_version: System.version(),
+        otp_release: to_string(:erlang.system_info(:otp_release)),
+        erts_version: to_string(:erlang.system_info(:version)),
+        schedulers: :erlang.system_info(:schedulers),
+        runtime_env: to_string(config.env),
+        app_name: app_name,
+        app_version: app_version
+      }
+      |> Map.reject(fn {_k, v} -> is_nil(v) end)
+
+    JSON.encode!(%{sdk: "elixir", sdk_manifest: sdk_manifest})
+  end
+
+  defp sdk_version do
+    case Application.spec(:fostrom, :vsn) do
+      nil -> nil
+      vsn -> to_string(vsn)
+    end
+  end
+
+  defp detect_host_app do
+    Enum.find_value(:application.loaded_applications(), {nil, nil}, fn {app, _desc, vsn} ->
+      cond do
+        app == :fostrom -> nil
+        host_app?(app) -> {to_string(app), to_string(vsn)}
+        true -> nil
+      end
+    end)
+  end
+
+  defp host_app?(app) do
+    case :application.get_key(app, :applications) do
+      {:ok, deps} -> :fostrom in deps
+      _ -> false
+    end
+  end
 end
