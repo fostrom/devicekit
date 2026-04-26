@@ -97,7 +97,7 @@ defmodule Fostrom.DeviceAgent do
         elixir_version: System.version(),
         otp_release: to_string(:erlang.system_info(:otp_release)),
         erts_version: to_string(:erlang.system_info(:version)),
-        schedulers: :erlang.system_info(:schedulers),
+        schedulers_online: :erlang.system_info(:schedulers_online),
         runtime_env: to_string(config.env),
         app_name: app_name,
         app_version: app_version

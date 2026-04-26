@@ -65,14 +65,14 @@ defmodule Fostrom.DeviceAgentTest do
       json = Fostrom.DeviceAgent.build_sdk_manifest(%{env: :prod})
       %{"sdk_manifest" => manifest} = JSON.decode!(json)
 
-      for key <- ~w(sdk_version elixir_version otp_release erts_version schedulers runtime_env) do
+      for key <- ~w(sdk_version elixir_version otp_release erts_version schedulers_online runtime_env) do
         assert Map.has_key?(manifest, key), "expected sdk_manifest to contain #{key}"
       end
 
       assert manifest["elixir_version"] == System.version()
       assert manifest["otp_release"] == to_string(:erlang.system_info(:otp_release))
       assert manifest["erts_version"] == to_string(:erlang.system_info(:version))
-      assert is_integer(manifest["schedulers"])
+      assert is_integer(manifest["schedulers_online"])
     end
 
     test "runtime_env reflects config.env" do
