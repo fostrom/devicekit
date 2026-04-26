@@ -51,4 +51,53 @@ defmodule Fostrom.DeviceAgentTest do
       assert Fostrom.DeviceAgent.telemetry_env("60") == []
     end
   end
+
+  describe "build_sdk_manifest/1" do
+    test "returns valid JSON with sdk == \"elixir\"" do
+      json = Fostrom.DeviceAgent.build_sdk_manifest(%{env: :prod})
+      decoded = JSON.decode!(json)
+
+      assert %{"sdk" => "elixir", "sdk_manifest" => %{} = manifest} = decoded
+      assert is_map(manifest)
+    end
+
+    test "includes the expected language/runtime keys" do
+      json = Fostrom.DeviceAgent.build_sdk_manifest(%{env: :prod})
+      %{"sdk_manifest" => manifest} = JSON.decode!(json)
+
+      for key <- ~w(sdk_version elixir_version otp_release erts_version schedulers runtime_env) do
+        assert Map.has_key?(manifest, key), "expected sdk_manifest to contain #{key}"
+      end
+
+      assert manifest["elixir_version"] == System.version()
+      assert manifest["otp_release"] == to_string(:erlang.system_info(:otp_release))
+      assert manifest["erts_version"] == to_string(:erlang.system_info(:version))
+      assert is_integer(manifest["schedulers"])
+    end
+
+    test "runtime_env reflects config.env" do
+      for env <- [:prod, :dev, :staging, :test] do
+        json = Fostrom.DeviceAgent.build_sdk_manifest(%{env: env})
+        %{"sdk_manifest" => manifest} = JSON.decode!(json)
+        assert manifest["runtime_env"] == to_string(env)
+      end
+    end
+
+    test "omits nil app_name and app_version keys" do
+      # In the test runtime no host app declares :fostrom as a dep, so app_name/app_version
+      # come back as nil and Map.reject should drop them entirely.
+      json = Fostrom.DeviceAgent.build_sdk_manifest(%{env: :test})
+      %{"sdk_manifest" => manifest} = JSON.decode!(json)
+
+      refute Map.has_key?(manifest, "app_name")
+      refute Map.has_key?(manifest, "app_version")
+    end
+
+    test "sdk_version comes from the fostrom application spec" do
+      json = Fostrom.DeviceAgent.build_sdk_manifest(%{env: :prod})
+      %{"sdk_manifest" => manifest} = JSON.decode!(json)
+      expected = Application.spec(:fostrom, :vsn) |> to_string()
+      assert manifest["sdk_version"] == expected
+    end
+  end
 end
