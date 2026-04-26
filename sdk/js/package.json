@@ -23,6 +23,7 @@
   "files": [
     "index.js",
     "json.js",
+    "manifest.js",
     "dl-agent.sh",
     "README.md",
     "LICENSE"

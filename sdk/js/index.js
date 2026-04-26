@@ -1,114 +1,11 @@
 import { execFileSync } from "child_process"
-import { fileURLToPath } from "url"
 import path from "path"
-import fs from "node:fs"
 import http from "node:http"
 import { stringifyJSON, parseJSON } from "./json.js"
-
-function sdk_dir() {
-  return path.dirname(fileURLToPath(import.meta.url))
-}
+import { build_sdk_manifest, sdk_dir } from "./manifest.js"
 
 function agent_path() {
   return path.join(sdk_dir(), ".agent", "fostrom-device-agent")
-}
-
-function read_sdk_version() {
-  try {
-    const pkgPath = path.join(sdk_dir(), "package.json")
-    const raw = fs.readFileSync(pkgPath, "utf8")
-    const pkg = JSON.parse(raw)
-    if (pkg && typeof pkg.version === "string") return pkg.version
-  } catch { }
-  return null
-}
-
-function detect_runtime() {
-  if (typeof process !== "undefined" && process.versions) {
-    if (process.versions.bun) {
-      return {
-        runtime: "bun",
-        bun_version: process.versions.bun,
-        node_version: process.versions.node || null,
-      }
-    }
-    if (typeof globalThis.Deno !== "undefined") {
-      return {
-        runtime: "deno",
-        deno_version: (globalThis.Deno.version && globalThis.Deno.version.deno) || null,
-        v8_version: process.versions.v8 || null,
-      }
-    }
-    return {
-      runtime: "node",
-      node_version: process.versions.node || null,
-      v8_version: process.versions.v8 || null,
-    }
-  }
-  return { runtime: "unknown" }
-}
-
-function detect_host_app() {
-  let dir
-  try {
-    dir = path.resolve(process.cwd())
-  } catch {
-    return { app_name: null, app_version: null }
-  }
-
-  const sdkDirResolved = path.resolve(sdk_dir())
-
-  while (true) {
-    // Don't claim app metadata from inside node_modules or the SDK package itself.
-    if (dir.split(path.sep).includes("node_modules")) break
-    if (dir === sdkDirResolved) break
-
-    const pkgPath = path.join(dir, "package.json")
-    try {
-      const stat = fs.statSync(pkgPath)
-      if (stat.isFile()) {
-        const raw = fs.readFileSync(pkgPath, "utf8")
-        const pkg = JSON.parse(raw)
-        const name = (pkg && typeof pkg.name === "string") ? pkg.name : null
-        const version = (pkg && typeof pkg.version === "string") ? pkg.version : null
-        if (name && name.toLowerCase() === "fostrom") {
-          return { app_name: null, app_version: null }
-        }
-        return { app_name: name, app_version: version }
-      }
-    } catch { }
-
-    const parent = path.dirname(dir)
-    if (parent === dir) break
-    dir = parent
-  }
-
-  return { app_name: null, app_version: null }
-}
-
-function build_sdk_manifest(runtimeEnv) {
-  const runtimeInfo = detect_runtime()
-  const { app_name, app_version } = detect_host_app()
-
-  const sdk_manifest = {
-    sdk_version: read_sdk_version(),
-    ...runtimeInfo,
-  }
-
-  if (runtimeEnv && String(runtimeEnv).trim() !== "") {
-    sdk_manifest.runtime_env = String(runtimeEnv)
-  }
-
-  if (app_name) sdk_manifest.app_name = app_name
-  if (app_version) sdk_manifest.app_version = app_version
-
-  for (const k of Object.keys(sdk_manifest)) {
-    if (sdk_manifest[k] === null || sdk_manifest[k] === undefined) {
-      delete sdk_manifest[k]
-    }
-  }
-
-  return JSON.stringify({ sdk: "js", sdk_manifest })
 }
 
 class FostromError extends Error {
