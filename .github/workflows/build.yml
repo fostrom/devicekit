@@ -54,7 +54,7 @@ jobs:
   build-ubuntu-amd64:
     runs-on: ubuntu-latest
     env:
-      PYTHON_VERSION: "3.10"
+      PYTHON_VERSION: "3.11"
 
     steps:
       - uses: actions/checkout@v4
@@ -111,7 +111,7 @@ jobs:
   build-macos-arm64:
     runs-on: macos-latest
     env:
-      PYTHON_VERSION: "3.10"
+      PYTHON_VERSION: "3.11"
 
     steps:
       - uses: actions/checkout@v4
