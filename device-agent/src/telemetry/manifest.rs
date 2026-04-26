@@ -66,15 +66,18 @@ pub fn collect_manifest(source: &TelemetrySource) -> Manifest {
 }
 
 fn read_sdk_manifest() -> (Option<String>, Option<Value>) {
-    let Ok(raw) = var("FOSTROM_SDK_MANIFEST") else {
-        return (None, None);
-    };
+    match var("FOSTROM_SDK_MANIFEST") {
+        Ok(raw) => parse_sdk_manifest(&raw),
+        Err(_) => (None, None),
+    }
+}
 
+fn parse_sdk_manifest(raw: &str) -> (Option<String>, Option<Value>) {
     if raw.trim().is_empty() {
         return (None, None);
     }
 
-    let parsed: Value = match serde_json::from_str(&raw) {
+    let parsed: Value = match serde_json::from_str(raw) {
         Ok(value) => value,
         Err(e) => {
             eprintln!("manifest: failed to parse FOSTROM_SDK_MANIFEST: {e}");
@@ -119,4 +122,89 @@ fn first_non_empty<'a>(values: impl Iterator<Item = &'a str>) -> Option<String> 
         .map(str::trim)
         .find(|value| !value.is_empty())
         .map(ToString::to_string)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn accepts_each_known_sdk() {
+        for sdk in ["elixir", "python", "js"] {
+            let raw = json!({ "sdk": sdk, "sdk_manifest": { "sdk_version": "0.1.0" } }).to_string();
+            let (got_sdk, got_manifest) = parse_sdk_manifest(&raw);
+            assert_eq!(got_sdk.as_deref(), Some(sdk));
+            assert!(matches!(got_manifest, Some(Value::Object(_))));
+        }
+    }
+
+    #[test]
+    fn preserves_sdk_manifest_contents() {
+        let raw = json!({
+            "sdk": "elixir",
+            "sdk_manifest": { "sdk_version": "0.1.0", "schedulers": 8 }
+        })
+        .to_string();
+        let (_, manifest) = parse_sdk_manifest(&raw);
+        let manifest = manifest.expect("expected manifest");
+        assert_eq!(manifest["sdk_version"], json!("0.1.0"));
+        assert_eq!(manifest["schedulers"], json!(8));
+    }
+
+    #[test]
+    fn rejects_unknown_sdk() {
+        for bad in ["go", "rust", "ruby", ""] {
+            let raw =
+                json!({ "sdk": bad, "sdk_manifest": { "sdk_version": "0.1.0" } }).to_string();
+            assert_eq!(parse_sdk_manifest(&raw), (None, None), "input: {bad}");
+        }
+    }
+
+    #[test]
+    fn rejects_non_string_sdk() {
+        let raw = json!({ "sdk": 42, "sdk_manifest": {} }).to_string();
+        assert_eq!(parse_sdk_manifest(&raw), (None, None));
+    }
+
+    #[test]
+    fn rejects_missing_sdk() {
+        let raw = json!({ "sdk_manifest": { "sdk_version": "0.1.0" } }).to_string();
+        assert_eq!(parse_sdk_manifest(&raw), (None, None));
+    }
+
+    #[test]
+    fn rejects_missing_sdk_manifest() {
+        let raw = json!({ "sdk": "elixir" }).to_string();
+        assert_eq!(parse_sdk_manifest(&raw), (None, None));
+    }
+
+    #[test]
+    fn rejects_non_object_sdk_manifest() {
+        let raw = json!({ "sdk": "elixir", "sdk_manifest": "nope" }).to_string();
+        assert_eq!(parse_sdk_manifest(&raw), (None, None));
+
+        let raw = json!({ "sdk": "elixir", "sdk_manifest": [1, 2, 3] }).to_string();
+        assert_eq!(parse_sdk_manifest(&raw), (None, None));
+    }
+
+    #[test]
+    fn rejects_non_object_root() {
+        assert_eq!(parse_sdk_manifest("[1,2,3]"), (None, None));
+        assert_eq!(parse_sdk_manifest("\"elixir\""), (None, None));
+        assert_eq!(parse_sdk_manifest("42"), (None, None));
+    }
+
+    #[test]
+    fn rejects_malformed_json() {
+        assert_eq!(parse_sdk_manifest("not-json"), (None, None));
+        assert_eq!(parse_sdk_manifest("{"), (None, None));
+    }
+
+    #[test]
+    fn empty_input_yields_none() {
+        assert_eq!(parse_sdk_manifest(""), (None, None));
+        assert_eq!(parse_sdk_manifest("   "), (None, None));
+        assert_eq!(parse_sdk_manifest("\n\t"), (None, None));
+    }
 }
