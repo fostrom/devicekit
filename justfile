@@ -13,7 +13,7 @@ AMD_MAC := "x86_64-apple-darwin"
 # ARM_FREEBSD  := "aarch64-unknown-freebsd"
 AMD_FREEBSD  := "x86_64-unknown-freebsd"
 
-PYTHON_VERSION := "3.10"
+PYTHON_VERSION := "3.11"
 export UV_PYTHON := PYTHON_VERSION
 
 QUIET := if env("GITHUB_ACTIONS", "false") == "true" { "" } else { "-q" }
@@ -323,7 +323,6 @@ test-extensive:
 [working-directory("sdk/python/")]
 test-extensive-sdk-python:
     # Based on: https://simonwillison.net/2025/Oct/9/uv-test
-    uvx --python 3.10 --isolated --with 'fostrom @ .' pytest
     uvx --python 3.11 --isolated --with 'fostrom @ .' pytest
     uvx --python 3.12 --isolated --with 'fostrom @ .' pytest
     uvx --python 3.13 --isolated --with 'fostrom @ .' pytest
