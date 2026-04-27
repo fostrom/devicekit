@@ -151,6 +151,32 @@ pub enum PulseErrorReason {
         "packet_schema_type_mismatch: The Packet Schema does exist but not of the type provided."
     )]
     PacketSchemaTypeMismatch = 3,
+    #[deku(id = 4)]
+    #[error(
+        "empty_payload_for_datapoint: A datapoint pulse must carry a non-empty payload matching its Packet Schema."
+    )]
+    EmptyPayloadForDatapoint = 4,
+}
+
+#[derive(Error, Debug, Clone, Copy, PartialEq, Eq, DekuRead, DekuWrite)]
+#[deku(id_type = "u8", ctx = "endian: deku::ctx::Endian")]
+pub enum MailboxNextErrorReason {
+    #[deku(id = 0)]
+    #[error("unknown_error: An unknown error occurred while fetching the next mail.")]
+    Unknown = 0,
+}
+
+#[derive(Error, Debug, Clone, Copy, PartialEq, Eq, DekuRead, DekuWrite)]
+#[deku(id_type = "u8", ctx = "endian: deku::ctx::Endian")]
+pub enum MailAckErrorReason {
+    #[deku(id = 0)]
+    #[error("unknown_error: An unknown error occurred while ack/reject/requeueing the mail.")]
+    Unknown = 0,
+    #[deku(id = 1)]
+    #[error(
+        "not_next_mail: The mail you tried to ack/reject/requeue is no longer at the front of the queue. Fetch the next mail and try again."
+    )]
+    NotNextMail = 1,
 }
 
 #[derive(Display, Debug, Clone, Copy, PartialEq, Eq, DekuRead, DekuWrite)]
@@ -173,6 +199,14 @@ pub enum GeneralErrors {
 
     #[error("mail_ack_failed: Failed to {ack_type} the mail with ID {pulse_id}.")]
     AckMailFailed {
+        pulse_id: u128,
+        ack_type: MailAckType,
+    },
+
+    #[error(
+        "not_next_mail: The mail with ID {pulse_id} is no longer at the front of the queue. Fetch the next mail and try again."
+    )]
+    NotNextMail {
         pulse_id: u128,
         ack_type: MailAckType,
     },
@@ -445,6 +479,9 @@ pub enum MoonlightPacket {
             count = "payload_len.unwrap_or(0)"
         )]
         payload: Option<Vec<u8>>,
+
+        #[deku(cond = "!*successful")]
+        error_reason: Option<MailboxNextErrorReason>,
     },
 
     #[deku(id = "25")]
@@ -461,6 +498,9 @@ pub enum MoonlightPacket {
         mailbox_size: u16,
         pulse_id: u128,
         ack_type: MailAckType,
+
+        #[deku(cond = "!*successful")]
+        error_reason: Option<MailAckErrorReason>,
     },
 }
 
@@ -576,10 +616,18 @@ impl MoonlightPacket {
             name: None,
             payload_len: None,
             payload: None,
+            error_reason: None,
         }
     }
 
     pub fn mailbox_next_resp_failed(txn_id: u64) -> Self {
+        Self::mailbox_next_resp_failed_with_reason(txn_id, MailboxNextErrorReason::Unknown)
+    }
+
+    pub fn mailbox_next_resp_failed_with_reason(
+        txn_id: u64,
+        error_reason: MailboxNextErrorReason,
+    ) -> Self {
         Self::MailboxNextResp {
             header_only: false,
             successful: false,
@@ -590,6 +638,7 @@ impl MoonlightPacket {
             name: None,
             payload_len: None,
             payload: None,
+            error_reason: Some(error_reason),
         }
     }
 
@@ -609,6 +658,7 @@ impl MoonlightPacket {
             name: Some(name.as_bytes().to_vec()),
             payload_len: None,
             payload: None,
+            error_reason: None,
         }
     }
 
@@ -633,6 +683,7 @@ impl MoonlightPacket {
             name: Some(name.as_bytes().to_vec()),
             payload_len: Some(payload.len() as u32),
             payload: Some(payload.as_bytes().to_vec()),
+            error_reason: None,
         }
     }
 
@@ -646,15 +697,25 @@ impl MoonlightPacket {
             mailbox_size,
             pulse_id,
             ack_type,
+            error_reason: None,
         }
     }
 
     pub fn ack_mail_resp_failed(pulse_id: u128, ack_type: MailAckType) -> Self {
+        Self::ack_mail_resp_failed_with_reason(pulse_id, ack_type, MailAckErrorReason::Unknown)
+    }
+
+    pub fn ack_mail_resp_failed_with_reason(
+        pulse_id: u128,
+        ack_type: MailAckType,
+        error_reason: MailAckErrorReason,
+    ) -> Self {
         Self::AckMailResp {
             successful: false,
             mailbox_size: 0,
             pulse_id,
             ack_type,
+            error_reason: Some(error_reason),
         }
     }
 }
@@ -732,8 +793,8 @@ pub enum ServerResp {
 
     // Transactions
     PulseResp(Result<u64, (u64, PulseErrorReason)>),
-    AckMailResp(Result<(u128, bool), (u128, MailAckType)>),
-    MailboxNext(Result<(u64, Option<Mail>), u64>),
+    AckMailResp(Result<(u128, bool), (u128, MailAckType, MailAckErrorReason)>),
+    MailboxNext(Result<(u64, Option<Mail>), (u64, MailboxNextErrorReason)>),
 }
 
 impl ServerResp {
@@ -776,10 +837,12 @@ impl ServerResp {
                 mailbox_size,
                 pulse_id,
                 ack_type,
+                error_reason,
             } => ServerResp::AckMailResp(if successful {
                 Ok((pulse_id, mailbox_size > 0))
             } else {
-                Err((pulse_id, ack_type))
+                let reason = error_reason.unwrap_or(MailAckErrorReason::Unknown);
+                Err((pulse_id, ack_type, reason))
             }),
 
             P::MailboxNextResp {
@@ -792,6 +855,7 @@ impl ServerResp {
                 name,
                 payload_len: _,
                 payload,
+                error_reason,
             } => {
                 let mut mail = Mail {
                     pulse_id: 0,
@@ -800,20 +864,22 @@ impl ServerResp {
                     mailbox_size,
                 };
 
+                let reason = error_reason.unwrap_or(MailboxNextErrorReason::Unknown);
+
                 if successful && mailbox_size != 0 {
                     let pulse_id = match pulse_id {
                         Some(pulse_id) => pulse_id,
-                        None => return ServerResp::MailboxNext(Err(txn_id)),
+                        None => return ServerResp::MailboxNext(Err((txn_id, reason))),
                     };
 
                     let name = match name {
                         Some(name) => name,
-                        None => return ServerResp::MailboxNext(Err(txn_id)),
+                        None => return ServerResp::MailboxNext(Err((txn_id, reason))),
                     };
 
                     let name = match String::from_utf8(name) {
                         Ok(name) => name,
-                        Err(_) => return ServerResp::MailboxNext(Err(txn_id)),
+                        Err(_) => return ServerResp::MailboxNext(Err((txn_id, reason))),
                     };
 
                     mail.pulse_id = pulse_id;
@@ -835,7 +901,7 @@ impl ServerResp {
                 } else if successful && mailbox_size == 0 {
                     ServerResp::MailboxNext(Ok((txn_id, None)))
                 } else {
-                    ServerResp::MailboxNext(Err(txn_id))
+                    ServerResp::MailboxNext(Err((txn_id, reason)))
                 }
             }
 
@@ -1299,22 +1365,20 @@ impl ClientLogic {
             ServerResp::AckMailResp(ack_result) => match ack_result {
                 Ok((pulse_id, false)) => self.resolve_mail(pulse_id, R::MailAckSuccessful(false)),
                 Ok((pulse_id, true)) => self.resolve_mail(pulse_id, R::MailAckSuccessful(true)),
-                Err((pulse_id, mail_ack_type)) => self.resolve_mail(
+                Err((pulse_id, ack_type, MailAckErrorReason::NotNextMail)) => self.resolve_mail(
                     pulse_id,
-                    R::Err(
-                        GeneralErrors::AckMailFailed {
-                            pulse_id,
-                            ack_type: mail_ack_type,
-                        }
-                        .to_string(),
-                    ),
+                    R::Err(GeneralErrors::NotNextMail { pulse_id, ack_type }.to_string()),
+                ),
+                Err((pulse_id, ack_type, _)) => self.resolve_mail(
+                    pulse_id,
+                    R::Err(GeneralErrors::AckMailFailed { pulse_id, ack_type }.to_string()),
                 ),
             },
 
             ServerResp::MailboxNext(mail_result) => match mail_result {
                 Ok((txn_id, Some(mail))) => self.resolve_txn(txn_id, R::Mail(Some(mail))),
                 Ok((txn_id, None)) => self.resolve_txn(txn_id, R::Mail(None)),
-                Err(txn_id) => self.resolve_txn(
+                Err((txn_id, _reason)) => self.resolve_txn(
                     txn_id,
                     R::Err("failed: Failed to fetch next mail".to_string()),
                 ),
@@ -1965,6 +2029,7 @@ mod tests {
         cmp_pulse_resp_error(PulseErrorReason::DeserializationFailed);
         cmp_pulse_resp_error(PulseErrorReason::PacketSchemaNotFound);
         cmp_pulse_resp_error(PulseErrorReason::PacketSchemaTypeMismatch);
+        cmp_pulse_resp_error(PulseErrorReason::EmptyPayloadForDatapoint);
     }
 
     fn make_vec_with_txn_id(magic: u8, flag: u8, txn_id: u64) -> Vec<u8> {
@@ -1992,9 +2057,19 @@ mod tests {
     #[test]
     fn test_mailbox_next_resp_failed() {
         let txn_id = txn_id();
+        // Default reason: MailboxNextErrorReason::Unknown (0)
         let mut bytes = make_vec_with_txn_id(22, 0, txn_id);
-        bytes.extend_from_slice(&[0, 0]);
+        bytes.extend_from_slice(&[0, 0, 0]);
         cmp(P::mailbox_next_resp_failed(txn_id), &bytes);
+
+        // Explicit reason
+        let mut bytes = make_vec_with_txn_id(22, 0, txn_id);
+        bytes.extend_from_slice(&[0, 0, 0]);
+        let reason = MailboxNextErrorReason::Unknown;
+        cmp(
+            P::mailbox_next_resp_failed_with_reason(txn_id, reason),
+            &bytes,
+        );
     }
 
     #[test]
@@ -2068,22 +2143,37 @@ mod tests {
         if successful {
             cmp(P::ack_mail_resp(mailbox_size, pulse_id, ack_type), &bytes);
         } else {
+            // Default reason: MailAckErrorReason::Unknown (0)
+            bytes.push(0);
             cmp(P::ack_mail_resp_failed(pulse_id, ack_type), &bytes);
         }
+    }
+
+    fn cmp_ack_mail_resp_with_reason(ack_type: MailAckType, reason: MailAckErrorReason) {
+        let pulse_id = pulse_id();
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&[26, 0]);
+        bytes.extend_from_slice(&0u16.to_be_bytes());
+        bytes.extend_from_slice(&pulse_id.to_be_bytes());
+        bytes.push(ack_type as u8);
+        bytes.push(reason as u8);
+        cmp(
+            P::ack_mail_resp_failed_with_reason(pulse_id, ack_type, reason),
+            &bytes,
+        );
     }
 
     #[test]
     fn test_ack_mail() {
         use super::MailAckType as AT;
-        cmp_ack_mail(AT::Ack);
-        cmp_ack_mail(AT::Reject);
-        cmp_ack_mail(AT::Requeue);
-        cmp_ack_mail_resp(true, AT::Ack);
-        cmp_ack_mail_resp(false, AT::Ack);
-        cmp_ack_mail_resp(true, AT::Reject);
-        cmp_ack_mail_resp(false, AT::Reject);
-        cmp_ack_mail_resp(true, AT::Requeue);
-        cmp_ack_mail_resp(false, AT::Requeue);
+
+        for ack_type in [AT::Ack, AT::Reject, AT::Requeue] {
+            cmp_ack_mail(ack_type);
+            cmp_ack_mail_resp(true, ack_type);
+            cmp_ack_mail_resp(false, ack_type);
+            cmp_ack_mail_resp_with_reason(ack_type, MailAckErrorReason::Unknown);
+            cmp_ack_mail_resp_with_reason(ack_type, MailAckErrorReason::NotNextMail);
+        }
     }
 
     #[test]
@@ -2392,6 +2482,25 @@ mod tests {
         assert!(matches!(
             return_value,
             ReturnChanResult::Err(str) if str.starts_with("mail_ack_failed") && str.contains("Failed to acknowledge the mail with ID 3"),
+        ));
+
+        // not_next_mail surfaces a distinctive error string
+        let (ret_tx, ret_rx) = channel();
+        let cmd_pulse = ClientCmd::MailOp(MailAckType::Ack, 4, ret_tx);
+        logic.process_client_event(ClientEvent::Cmd(cmd_pulse));
+        let pulse_resp = Codec::encode(&P::ack_mail_resp_failed_with_reason(
+            4,
+            MailAckType::Ack,
+            MailAckErrorReason::NotNextMail,
+        ))
+        .unwrap();
+        let transport_recv = ClientEvent::TransportRecv(pulse_resp);
+        assert_eq!(logic.process_client_event(transport_recv), None);
+        let return_value = ret_rx.recv().unwrap();
+
+        assert!(matches!(
+            return_value,
+            ReturnChanResult::Err(str) if str.starts_with("not_next_mail") && str.contains("ID 4"),
         ));
 
         let (ret_tx, _ret_rx) = channel();
